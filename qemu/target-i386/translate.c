@@ -8004,6 +8004,12 @@ static void gen_intermediate_code_internal(CPUState *env,
 
             //mz generate micro-ops for this instruction
             pc_ptr = disas_insn(dc, pc_ptr);
+            
+            // PANDA: Insert the instrumentation
+            if (unlikely(panda_exec_cb)) {
+                gen_helper_panda_insn_after_exec(tcg_const_tl(pc_ptr));
+            }
+
             tb->num_guest_insns++;
             if (dc->is_first_instr) {
                 //mz record the page for the last byte of 1st instruction.

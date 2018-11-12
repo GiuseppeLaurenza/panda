@@ -83,9 +83,16 @@ Signature: `typedef void (*on_fn_start_t)(CPUState *env, target_ulong pc, const 
 
 Description: Called when execution hits the start of a function after the function's prologue.
 
+Name: **on_fn_return**
+
+Signature: `typedef void (*on_fn_return_t)(CPUState *env, target_ulong pc, const char *file_name, const char *funct_name, unsigned long long lno)`
+
+Description: Called when execution hits the return of a function.
+
+
 ---------------
 
-There are three API functions provided to clients that allow them to iterate through live variables at the current state of execution.
+There are five API functions provided to clients that allow them to iterate through live variables at the current state of execution.
 
     // get source info for a pc at current execution return -1 if in external libraries that do not have symbol information
     int pri_get_pc_source_info (CPUState *env, target_ulong pc, PC_Info *info);
@@ -106,12 +113,14 @@ There are three API functions provided to clients that allow them to iterate thr
     // iterate through the global vars at the current state of execution
     void pri_global_livevar_iter (CPUState *env, target_ulong pc, void (*f)(void *var_ty, const char *var_nm, LocType loc_t, target_ulong loc));
     
-There are three API functions provided to pri providers that allow them to run callbacks that will be available to clients through the `pri` interface.
+There are four API functions provided to pri providers that allow them to run callbacks that will be available to clients through the `pri` interface.
     // run a line change callback
     void pri_runcb_on_before_line_change(CPUState *env, target_ulong pc, const char *file_name, const char *funct_name, unsigned long long lno);
     void pri_runcb_on_after_line_change(CPUState *env, target_ulong pc, const char *file_name, const char *funct_name, unsigned long long lno);
     // run a callback signaling the beginning of a function AFTER the function prologue
     void pri_runcb_on_fn_start(CPUState *env, target_ulong pc, const char *file_name, const char *funct_name, unsigned long long lno);
+    // run a callback signaling the end of a function
+    void pri_runcb_on_fn_return(CPUState *env, target_ulong pc, const char *file_name, const char *funct_name, unsigned long long lno);
 
 ---------------
 
@@ -193,4 +202,3 @@ This is an example of a use of `pri`.  Note that for this to be useful it needs 
     }
     void uninit_plugin(void *self) {
     }
-

@@ -201,6 +201,10 @@ Here is how some of the plugins fit into that emulation sequence.
 * `PANDA_CB_INSN_EXEC` is just before host code emulating a guest instruction
   executes, but only exists if `INSN_TRANSLATE` callback returned true.
 
+
+* `PANDA_CB_INSN_AFTER_EXEC` is just after the host code emulating a guest instruction
+  executes, but only exists if `INSN_TRANSLATE` callback returned true.
+
 NOTE. Although it is a little out of date, the explanation of emulation in
 Fabrice Bellard's original USENIX paper on QEMU is quite a good read.  "QEMU, a
 Fast and Portable Dynamic Translator", USENIX 2005 Annual Technical Conference.
@@ -542,6 +546,7 @@ possible callback signatures).
     PANDA_CB_AFTER_BLOCK_EXEC,          // After executing each basic block
     PANDA_CB_INSN_TRANSLATE,    // Before an instruction is translated
     PANDA_CB_INSN_EXEC,         // Before an instruction is executed
+    PANDA_CB_INSN_AFTER_EXEC,   // After an insn is executed
     PANDA_CB_VIRT_MEM_BEFORE_READ,  // Before read of virtual memory
     PANDA_CB_VIRT_MEM_BEFORE_WRITE, // Before write to virtual memory
     PANDA_CB_PHYS_MEM_BEFORE_READ,  // Before read of physical memory
@@ -1250,7 +1255,8 @@ unused
 This allows a plugin writer to instrument only a small number of
 instructions, avoiding the performance hit of instrumenting everything.
 If you do want to instrument every single instruction, just return
-true. See the documentation for `PANDA_CB_INSN_EXEC` for more detail.
+true. See the documentation for `PANDA_CB_INSN_EXEC` and 
+'PANDA_CB_INSN_AFTER_EXEC' for more detail.
 
 **Signature**:
 
@@ -1282,6 +1288,34 @@ the `PANDA_CB_INSN_TRANSLATE` callback.
 **Signature**:
 
 	int (*insn_exec)(CPUState *env, target_ulong pc);
+
+---
+
+`insn_after_exec`: called before execution of any instruction identified
+by the `PANDA_CB_INSN_TRANSLATE` callback
+
+**Callback ID**: `PANDA_CB_INSN_AFTER_EXEC`
+
+**Arguments**:
+
+* `CPUState *env`: the current CPU state
+* `target_ulong pc`: the guest PC we are about to execute
+
+**Return value**:
+
+unused
+
+**Notes**:
+
+This instrumentation is implemented by generating a call to a
+helper function just after the instruction itself is executed
+by the host through emulation.
+This is fairly expensive, which is why it's only enabled via
+the `PANDA_CB_INSN_TRANSLATE` callback.
+
+**Signature**:
+
+	int (*insn_after_exec)(CPUState *env, target_ulong pc);
 
 ---
 

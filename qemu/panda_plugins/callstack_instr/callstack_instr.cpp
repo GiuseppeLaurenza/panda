@@ -56,11 +56,13 @@ extern "C" {
 #include "callstack_instr_int_fns.h"
 
 PPP_PROT_REG_CB(on_call);
+PPP_PROT_REG_CB(on_call_2);
 PPP_PROT_REG_CB(on_ret);
 
 }
 
 PPP_CB_BOILERPLATE(on_call);
+PPP_CB_BOILERPLATE(on_call_2);
 PPP_CB_BOILERPLATE(on_ret);
 
 enum instr_type {
@@ -328,7 +330,7 @@ int after_block_exec(CPUState *env, TranslationBlock *tb, TranslationBlock *next
         // This retrieves the pc in an architecture-neutral way
         cpu_get_tb_cpu_state(env, &pc, &cs_base, &flags);
         function_stacks[get_stackid(env,tb->pc)].push_back(pc);
-
+        PPP_RUN_CB(on_call_2, env, tb->pc + tb->size);
         PPP_RUN_CB(on_call, env, pc);
     }
     else if (tb_type == INSTR_RET) {

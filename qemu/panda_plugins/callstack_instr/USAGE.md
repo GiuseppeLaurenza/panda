@@ -29,6 +29,12 @@ Signature: `typedef void (* on_call_t)(CPUState *env, target_ulong func)`
 
 Description: Called every time a function call occurs in the guest. Arguments are the CPU state pointer `env` and the virtual address of the function that is being called.
 
+Name: **on_call_2**
+
+Signature: `typedef void (* on_call_2_t)(CPUState *env, target_ulong func)`
+
+Description: Called every time a function call occurs in the guest. Arguments are the CPU state pointer `env` and the virtual address of the instruction following the call in the code.
+
 Name: **on_ret**
 
 Signature: `typedef void (* on_ret_t)(CPUState *env, target_ulong func)`

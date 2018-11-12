@@ -211,6 +211,65 @@ void panda_register_callback(void *plugin, panda_cb_type type, panda_cb cb) {
     panda_cbs[type] = new_list;
 }
 
+/**
+ * @brief Enables the execution of the specified callback.
+ *
+ * This is done by setting the `enabled` flag to `true`. After enabling the
+ * callback, it will execute in the same relative order as before having it
+ * disabled.
+ *
+ * @note Enabling an unregistered callback will trigger an assertion error.
+ */
+void panda_enable_callback(void *plugin, panda_cb_type type, panda_cb cb) {
+    bool found = false;
+    if (panda_cbs[type] != NULL) {
+        panda_cb_list *plist;
+        for (plist = panda_cbs[type]; plist != NULL; plist = plist->next) {
+            if (plist->owner == plugin && (plist->entry.cbaddr) == cb.cbaddr) {
+                found = true;
+                plist->enabled = true;
+
+                // break out of the loop - the same plugin can register the same callback only once
+                break;
+            }
+        }
+    }
+    // no callback found to enable
+    assert(found);
+}
+
+
+
+
+/**
+ * @brief Disables the execution of the specified callback.
+ *
+ * This is done by setting the `enabled` flag to `false`. The callback remains
+ * in the callback list, so when it is enabled again it will execute in the same
+ * relative order.
+ *
+ * @note Disabling an unregistered callback will trigger an assertion error.
+ */
+void panda_disable_callback(void *plugin, panda_cb_type type, panda_cb cb) {
+    bool found = false;
+    if (panda_cbs[type] != NULL) {
+        panda_cb_list *plist;
+        for (plist = panda_cbs[type]; plist != NULL; plist = plist->next) {
+            if (plist->owner == plugin && (plist->entry.cbaddr) == cb.cbaddr) {
+                found = true;
+                plist->enabled = false;
+
+                // break out of the loop - the same plugin can register the same callback only once
+                break;
+            }
+        }
+    }
+    // no callback found to disable
+    assert(found);
+}
+
+
+
 
 /*
 void spit_cbs(void) {

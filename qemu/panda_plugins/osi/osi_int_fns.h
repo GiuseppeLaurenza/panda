@@ -4,6 +4,8 @@
 // returns operating system introspection info for each process in an array
 OsiProcs *get_processes(CPUState *env);
 
+target_ulong get_current_thread(CPUState *env);
+
 // gets the currently running process
 OsiProc *get_current_process(CPUState *env);
 

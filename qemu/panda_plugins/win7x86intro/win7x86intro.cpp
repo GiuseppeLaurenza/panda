@@ -32,6 +32,7 @@ extern "C" {
 bool init_plugin(void *);
 void uninit_plugin(void *);
 void on_get_current_process(CPUState *env, OsiProc **out_p);
+// void on_get_current_thread(CPUState *env, target_ulong *thread);
 void on_get_processes(CPUState *env, OsiProcs **out_ps);
 void on_get_libraries(CPUState *env, OsiProc *p, OsiModules **out_ms);
 void on_free_osiproc(OsiProc *p);
@@ -100,11 +101,34 @@ char * get_unicode_str(CPUState *env, PTR ustr) {
         g_free(in_str);
         return make_pagedstr();
     }
-
+    bool cont=true;
     gsize bytes_written = 0;
+    if (in_str == NULL){
+        // printf("NULL\n");
+        g_free(in_str);
+        char* tmp = "name_not_found\n";
+        size = strlen(tmp)+1;
+        char* in_str = (char*) malloc(size);
+        memcpy(in_str, tmp, size);
+        return in_str;
+    }
     gchar *out_str = g_convert(in_str, size,
             "UTF-8", "UTF-16LE", NULL, &bytes_written, NULL);
-
+    if(!cont){
+        printf("EXIT\n");
+        exit(0);
+    }       
+    if(bytes_written==0){
+        // printf("Bytes written equals 0\n");
+        char* tmp = "name_not_found\n";
+        int len = strlen(tmp)+2;
+        char* ret = (char*) malloc(len);
+        memcpy(ret, tmp, len);
+        g_free(in_str);
+        // g_free(out_str);
+        return ret;
+    }
+    
     // An abundance of caution: we copy it over to something allocated
     // with our own malloc. In the future we need to provide a way for
     // someone else to free the memory allocated in here...
@@ -191,6 +215,15 @@ static PTR get_current_proc(CPUState *env) {
 
     return proc;
 }
+
+
+static PTR get_current_thread(CPUState *env) {
+    PTR thread;
+    PTR kpcr = get_kpcr(env);
+    panda_virtual_memory_rw(env, kpcr+KPCR_CURTHREAD_OFF, (uint8_t *)&thread, sizeof(PTR), false);
+    return thread;
+}
+
 
 static bool is_valid_process(CPUState *env, PTR eproc) {
     uint8_t type;
@@ -283,6 +316,10 @@ void on_get_current_process(CPUState *env, OsiProc **out_p) {
     PTR eproc = get_current_proc(env);
     fill_osiproc(env, p, eproc);
     *out_p = p;
+}
+
+void on_get_current_thread(CPUState *env, target_ulong *thread){
+    *thread = get_current_thread(env);
 }
 
 void on_get_processes(CPUState *env, OsiProcs **out_ps) {
@@ -413,6 +450,7 @@ bool init_plugin(void *self) {
     // panda_require("osi");
 #ifdef TARGET_I386
     PPP_REG_CB("osi", on_get_current_process, on_get_current_process);
+    // PPP_REG_CB("osi", on_get_current_thread, on_get_current_thread);
     PPP_REG_CB("osi", on_get_processes, on_get_processes);
     PPP_REG_CB("osi", on_get_libraries, on_get_libraries);
     PPP_REG_CB("osi", on_get_modules, on_get_modules);

@@ -26,52 +26,52 @@ PANDAENDCOMMENT */
 #define MAX_PANDA_PLUGIN_ARGS 32
 
 typedef enum panda_cb_type {
-    PANDA_CB_BEFORE_BLOCK_TRANSLATE,    // Before translating each basic block
-    PANDA_CB_AFTER_BLOCK_TRANSLATE,     // After translating each basic block
-    PANDA_CB_BEFORE_BLOCK_EXEC_INVALIDATE_OPT,    // Before executing each basic block (with option to invalidate, may trigger retranslation)
-    PANDA_CB_BEFORE_BLOCK_EXEC,         // Before executing each basic block
-    PANDA_CB_AFTER_BLOCK_EXEC,          // After executing each basic block
-    PANDA_CB_INSN_TRANSLATE,    // Before an insn is translated
-    PANDA_CB_INSN_EXEC,         // Before an insn is executed
+    PANDA_CB_BEFORE_BLOCK_TRANSLATE,            // Before translating each basic block
+    PANDA_CB_AFTER_BLOCK_TRANSLATE,             // After translating each basic block
+    PANDA_CB_BEFORE_BLOCK_EXEC_INVALIDATE_OPT,  // Before executing each basic block (with option to invalidate, may trigger retranslation)
+    PANDA_CB_BEFORE_BLOCK_EXEC,                 // Before executing each basic block
+    PANDA_CB_AFTER_BLOCK_EXEC,                  // After executing each basic block
+    PANDA_CB_INSN_TRANSLATE,                    // Before an insn is translated
+    PANDA_CB_INSN_EXEC,                         // Before an insn is executed
+    PANDA_CB_INSN_AFTER_EXEC,                   // After an insn is executed
 
-    // deprecated 
-    PANDA_CB_VIRT_MEM_READ,     // After each memory read (virtual addr.)    
-    PANDA_CB_VIRT_MEM_WRITE,    // Before each memory write (virtual addr.)
-    PANDA_CB_PHYS_MEM_READ,     // After each memory read (physical addr.)
-    PANDA_CB_PHYS_MEM_WRITE,    // Before each memory write (physical addr.)
+    // deprecated
+    PANDA_CB_VIRT_MEM_READ,   // After each memory read (virtual addr.)
+    PANDA_CB_VIRT_MEM_WRITE,  // Before each memory write (virtual addr.)
+    PANDA_CB_PHYS_MEM_READ,   // After each memory read (physical addr.)
+    PANDA_CB_PHYS_MEM_WRITE,  // Before each memory write (physical addr.)
 
-    PANDA_CB_VIRT_MEM_BEFORE_READ,    
-    PANDA_CB_VIRT_MEM_BEFORE_WRITE,   
-    PANDA_CB_PHYS_MEM_BEFORE_READ,    
-    PANDA_CB_PHYS_MEM_BEFORE_WRITE,   
+    PANDA_CB_VIRT_MEM_BEFORE_READ,
+    PANDA_CB_VIRT_MEM_BEFORE_WRITE,
+    PANDA_CB_PHYS_MEM_BEFORE_READ,
+    PANDA_CB_PHYS_MEM_BEFORE_WRITE,
 
-    PANDA_CB_VIRT_MEM_AFTER_READ,     
-    PANDA_CB_VIRT_MEM_AFTER_WRITE,    
-    PANDA_CB_PHYS_MEM_AFTER_READ,     
-    PANDA_CB_PHYS_MEM_AFTER_WRITE,    
+    PANDA_CB_VIRT_MEM_AFTER_READ,
+    PANDA_CB_VIRT_MEM_AFTER_WRITE,
+    PANDA_CB_PHYS_MEM_AFTER_READ,
+    PANDA_CB_PHYS_MEM_AFTER_WRITE,
 
-
-    PANDA_CB_HD_READ,           // Each HDD read
-    PANDA_CB_HD_WRITE,          // Each HDD write
-    PANDA_CB_GUEST_HYPERCALL,   // Hypercall from the guest (e.g. CPUID)
-    PANDA_CB_MONITOR,           // Monitor callback
-    PANDA_CB_CPU_RESTORE_STATE,  // In cpu_restore_state() (fault/exception)
-    PANDA_CB_BEFORE_REPLAY_LOADVM,     // at start of replay, before loadvm
-#ifndef CONFIG_SOFTMMU          // *** Only callbacks for QEMU user mode *** //
-    PANDA_CB_USER_BEFORE_SYSCALL, // before system call
-    PANDA_CB_USER_AFTER_SYSCALL,  // after system call (with return value)
+    PANDA_CB_HD_READ,               // Each HDD read
+    PANDA_CB_HD_WRITE,              // Each HDD write
+    PANDA_CB_GUEST_HYPERCALL,       // Hypercall from the guest (e.g. CPUID)
+    PANDA_CB_MONITOR,               // Monitor callback
+    PANDA_CB_CPU_RESTORE_STATE,     // In cpu_restore_state() (fault/exception)
+    PANDA_CB_BEFORE_REPLAY_LOADVM,  // at start of replay, before loadvm
+#ifndef CONFIG_SOFTMMU              // *** Only callbacks for QEMU user mode *** //
+    PANDA_CB_USER_BEFORE_SYSCALL,   // before system call
+    PANDA_CB_USER_AFTER_SYSCALL,    // after system call (with return value)
 #endif
 #ifdef CONFIG_PANDA_VMI
-    PANDA_CB_VMI_AFTER_FORK,    // After returning from fork()
-    PANDA_CB_VMI_AFTER_EXEC,    // After returning from exec()
-    PANDA_CB_VMI_AFTER_CLONE,    // After returning from clone()
+    PANDA_CB_VMI_AFTER_FORK,   // After returning from fork()
+    PANDA_CB_VMI_AFTER_EXEC,   // After returning from exec()
+    PANDA_CB_VMI_AFTER_CLONE,  // After returning from clone()
 #endif
-    PANDA_CB_VMI_PGD_CHANGED,   // After CPU's PGD is written to
-    PANDA_CB_REPLAY_HD_TRANSFER,    // in replay, hd transfer
-    PANDA_CB_REPLAY_NET_TRANSFER,   // in replay, transfers within network card (currently only E1000)
+    PANDA_CB_VMI_PGD_CHANGED,                        // After CPU's PGD is written to
+    PANDA_CB_REPLAY_HD_TRANSFER,                     // in replay, hd transfer
+    PANDA_CB_REPLAY_NET_TRANSFER,                    // in replay, transfers within network card (currently only E1000)
     PANDA_CB_REPLAY_BEFORE_CPU_PHYSICAL_MEM_RW_RAM,  // in replay, just before RAM case of cpu_physical_mem_rw
     PANDA_CB_REPLAY_AFTER_CPU_PHYSICAL_MEM_RW_RAM,   // in replay, just after RAM case of cpu_physical_mem_rw
-    PANDA_CB_REPLAY_HANDLE_PACKET,    // in replay, packet in / out
+    PANDA_CB_REPLAY_HANDLE_PACKET,                   // in replay, packet in / out
     PANDA_CB_LAST
 } panda_cb_type;
 
@@ -91,7 +91,7 @@ typedef union panda_cb {
         and retranslate, false otherwise
     */
     bool (*before_block_exec_invalidate_opt)(CPUState *env, TranslationBlock *tb);
-    
+
     /* Callback ID: PANDA_CB_BEFORE_BLOCK_EXEC
 
        before_block_exec: called before execution of every basic block
@@ -133,7 +133,7 @@ typedef union panda_cb {
 
     */
     int (*before_block_translate)(CPUState *env, target_ulong pc);
-    
+
     /* Callback ID: PANDA_CB_AFTER_BLOCK_TRANSLATE
        
        after_block_translate: called after the translation of each basic block
@@ -194,8 +194,28 @@ typedef union panda_cb {
         the PANDA_CB_INSN_TRANSLATE callback.
     
     */
-    int (*insn_exec)(CPUState *env, target_ulong pc);
 
+    int (*insn_after_exec)(CPUState *env, target_ulong pc);
+    /* Callback ID: PANDA_CB_INSN_AFTER_EXEC
+
+       insn_after_exec: called after execution of any instruction identified
+        by the PANDA_CB_INSN_TRANSLATE callback
+       
+       Arguments:
+        CPUState *env: the current CPU state
+        target_ulong pc: the guest PC we are about to execute
+       
+       Return value:
+        unused
+
+       Notes:
+        This instrumentation is implemented by generating a call to a
+        helper function just before the instruction itself is executed.
+        This is fairly expensive, which is why it's only enabled via
+        the PANDA_CB_INSN_TRANSLATE callback.
+    
+    */
+    int (*insn_exec)(CPUState *env, target_ulong pc);
     /* Callback ID: PANDA_CB_GUEST_HYPERCALL
 
        guest_hypercall: called when a program inside the guest makes a
@@ -267,7 +287,7 @@ typedef union panda_cb {
     */
     int (*virt_mem_read)(CPUState *env, target_ulong pc, target_ulong addr, target_ulong size, void *buf);
 
-/* Callback ID: PANDA_CB_VIRT_MEM_WRITE
+    /* Callback ID: PANDA_CB_VIRT_MEM_WRITE
 
        virt_mem_write: called before memory is written
        
@@ -301,7 +321,7 @@ typedef union panda_cb {
     */
     int (*phys_mem_read)(CPUState *env, target_ulong pc, target_ulong addr, target_ulong size, void *buf);
 
-/* Callback ID: PANDA_CB_PHYS_MEM_WRITE
+    /* Callback ID: PANDA_CB_PHYS_MEM_WRITE
 
        phys_mem_write: called before memory is written
        
@@ -318,11 +338,8 @@ typedef union panda_cb {
     */
     int (*phys_mem_write)(CPUState *env, target_ulong pc, target_ulong addr, target_ulong size, void *buf);
 
-
-
     // New versions.
-    
-    
+
     /* Callback ID: PANDA_CB_VIRT_MEM_BEFORE_READ
 
        virt_mem_before_read: called before memory is read
@@ -374,7 +391,7 @@ typedef union panda_cb {
     */
     int (*phys_mem_before_read)(CPUState *env, target_ulong pc, target_ulong addr, target_ulong size);
 
-/* Callback ID: PANDA_CB_PHYS_MEM_BEFORE_WRITE
+    /* Callback ID: PANDA_CB_PHYS_MEM_BEFORE_WRITE
 
        phys_mem_write: called before memory is written
        [exists]
@@ -392,9 +409,6 @@ typedef union panda_cb {
     */
     int (*phys_mem_before_write)(CPUState *env, target_ulong pc, target_ulong addr, target_ulong size, void *buf);
 
-    
-
-        
     /* Callback ID: PANDA_CB_VIRT_MEM_AFTER_READ
 
        virt_mem_after_read: called after memory is read
@@ -449,7 +463,7 @@ typedef union panda_cb {
     */
     int (*phys_mem_after_read)(CPUState *env, target_ulong pc, target_ulong addr, target_ulong size, void *buf);
 
-/* Callback ID: PANDA_CB_PHYS_MEM_AFTER_WRITE
+    /* Callback ID: PANDA_CB_PHYS_MEM_AFTER_WRITE
 
        phys_mem_write: called after memory is written
        [new]
@@ -467,18 +481,7 @@ typedef union panda_cb {
     */
     int (*phys_mem_after_write)(CPUState *env, target_ulong pc, target_ulong addr, target_ulong size, void *buf);
 
-    
-
-
-
-
-
-
-
-    
-
-    
-/* Callback ID: PANDA_CB_CPU_RESTORE_STATE
+    /* Callback ID: PANDA_CB_CPU_RESTORE_STATE
 
        cb_cpu_restore_state: called inside of cpu_restore_state(), when there is
         a CPU fault/exception
@@ -493,7 +496,7 @@ typedef union panda_cb {
 */
     int (*cb_cpu_restore_state)(CPUState *env, TranslationBlock *tb);
 
-/* Callback ID: PANDA_CB_BEFORE_LOADVM
+    /* Callback ID: PANDA_CB_BEFORE_LOADVM
  *      before_loadvm: called at start of replay, before loadvm is called
  *      This allows us to hook devices' loadvm handlers (remember to unregister
  *      the existing handler for the device first)
@@ -507,15 +510,14 @@ typedef union panda_cb {
  * 
  */
     int (*before_loadvm)(void);
-    
-    
+
 /* User-mode only callbacks:
  * We currently only support syscalls.  If you are particularly concerned about
  * arguments, look to linux-user/syscall.c for how to process them.
  */
 #ifndef CONFIG_SOFTMMU
 
-/* Callback ID: PANDA_CB_USER_BEFORE_SYSCALL
+    /* Callback ID: PANDA_CB_USER_BEFORE_SYSCALL
 
        user_before_syscall: Called before a syscall for QEMU user mode
        
@@ -534,11 +536,10 @@ typedef union panda_cb {
         system call arguments, be sure to process them in similar ways.
 */
     int (*user_before_syscall)(void *cpu_env, bitmask_transtbl *fcntl_flags_tbl,
-                               int num, abi_long arg1, abi_long arg2, abi_long
-                               arg3, abi_long arg4, abi_long arg5,
+                               int num, abi_long arg1, abi_long arg2, abi_long arg3, abi_long arg4, abi_long arg5,
                                abi_long arg6, abi_long arg7, abi_long arg8);
 
-/* Callback ID: PANDA_CB_USER_AFTER_SYSCALL
+    /* Callback ID: PANDA_CB_USER_AFTER_SYSCALL
 
        user_after_syscall: Called after a syscall for QEMU user mode
        
@@ -559,16 +560,15 @@ typedef union panda_cb {
         system call arguments, be sure to process them in similar ways.
 */
     int (*user_after_syscall)(void *cpu_env, bitmask_transtbl *fcntl_flags_tbl,
-                              int num, abi_long arg1, abi_long arg2, abi_long
-                              arg3, abi_long arg4, abi_long arg5, abi_long arg6,
+                              int num, abi_long arg1, abi_long arg2, abi_long arg3, abi_long arg4, abi_long arg5, abi_long arg6,
                               abi_long arg7, abi_long arg8, void *p,
                               abi_long ret);
 
-#endif // CONFIG_SOFTMMU
+#endif  // CONFIG_SOFTMMU
 
 #ifdef CONFIG_PANDA_VMI
-    
-/* Callback ID: PANDA_CB_VMI_AFTER_FORK
+
+    /* Callback ID: PANDA_CB_VMI_AFTER_FORK
  * 
  *      return_from_fork: Called after fork returns
  *      Arguments:
@@ -579,7 +579,7 @@ typedef union panda_cb {
  */
     int (*return_from_fork)(CPUState *env);
 
-/* Callback ID: PANDA_CB_VMI_AFTER_EXEC
+    /* Callback ID: PANDA_CB_VMI_AFTER_EXEC
  * 
  *      return_from_exec: Called after exec returns
  *      Arguments:
@@ -590,7 +590,7 @@ typedef union panda_cb {
  */
     int (*return_from_exec)(CPUState *env);
 
-/* Callback ID: PANDA_CB_VMI_AFTER_CLONE
+    /* Callback ID: PANDA_CB_VMI_AFTER_CLONE
  * 
  *      return_from_exec: Called after clone returns
  *      Arguments:
@@ -600,9 +600,9 @@ typedef union panda_cb {
  *       unused
  */
     int (*return_from_clone)(CPUState *env);
-#endif // CONFIG_PANDA_VMI
+#endif  // CONFIG_PANDA_VMI
 
-/* Callback ID: PANDA_CB_VMI_PGD_CHANGED
+    /* Callback ID: PANDA_CB_VMI_PGD_CHANGED
  * 
  *      after_PGD_write: Called after new PGD written to CPU hw
  *      Arguments:
@@ -615,7 +615,7 @@ typedef union panda_cb {
  */
     int (*after_PGD_write)(CPUState *env, target_ulong oldval, target_ulong newval);
 
-/* Callback ID:     PANDA_CB_REPLAY_HD_TRANSFER,   
+    /* Callback ID:     PANDA_CB_REPLAY_HD_TRANSFER,   
  
        In replay only, some kind of data transfer involving hard drive.
        NB: We are neither before nor after, really.  In replay the transfer
@@ -630,9 +630,9 @@ typedef union panda_cb {
        Return value:
         unused
  */
-  int (*replay_hd_transfer)(CPUState *env, uint32_t type, uint64_t src_addr, uint64_t dest_addr, uint32_t num_bytes);
+    int (*replay_hd_transfer)(CPUState *env, uint32_t type, uint64_t src_addr, uint64_t dest_addr, uint32_t num_bytes);
 
-/* Callback ID:     PANDA_CB_REPLAY_BEFORE_CPU_PHYSICAL_MEM_RW_RAM,
+    /* Callback ID:     PANDA_CB_REPLAY_BEFORE_CPU_PHYSICAL_MEM_RW_RAM,
 
    In replay only, we are about to dma between qemu buffer and guest memory
 
@@ -643,7 +643,7 @@ typedef union panda_cb {
    uint64_t paddr       "physical" address of guest RAM
    uint32_t num_bytes:  size of transfer
 */
-    int (*replay_before_cpu_physical_mem_rw_ram)(CPUState *env, uint32_t is_write, uint8_t* src_addr, uint64_t dest_addr, uint32_t num_bytes);
+    int (*replay_before_cpu_physical_mem_rw_ram)(CPUState *env, uint32_t is_write, uint8_t *src_addr, uint64_t dest_addr, uint32_t num_bytes);
 
     /* Callback ID:     PANDA_CB_REPLAY_AFTER_CPU_PHYSICAL_MEM_RW_RAM,
 
@@ -656,10 +656,9 @@ typedef union panda_cb {
    uint64_t paddr       "physical" address of guest RAM
    uint32_t num_bytes:  size of transfer
 */
-    int (*replay_after_cpu_physical_mem_rw_ram)(CPUState *env, uint32_t is_write, uint8_t* src_addr, uint64_t dest_addr, uint32_t num_bytes);
+    int (*replay_after_cpu_physical_mem_rw_ram)(CPUState *env, uint32_t is_write, uint8_t *src_addr, uint64_t dest_addr, uint32_t num_bytes);
 
-
-  /* Callback ID:   PANDA_CB_REPLAY_HANDLE_PACKET,
+    /* Callback ID:   PANDA_CB_REPLAY_HANDLE_PACKET,
 
      In replay only, we have a packet (incoming / outgoing) in hand.
      
@@ -671,10 +670,9 @@ typedef union panda_cb {
      uint64_t old_buf_addr  XXX this is a mystery
   */
 
-  int (*replay_handle_packet)(CPUState *env, uint8_t *buf, int size, uint8_t
-    direction, uint64_t old_buf_addr);
+    int (*replay_handle_packet)(CPUState *env, uint8_t *buf, int size, uint8_t direction, uint64_t old_buf_addr);
 
-/* Callback ID:     PANDA_CB_REPLAY_NET_TRANSFER,   
+    /* Callback ID:     PANDA_CB_REPLAY_NET_TRANSFER,   
  
        In replay only, some kind of data transfer within the network card
        (currently, only the E1000 is supported).  NB: We are neither before nor
@@ -690,8 +688,16 @@ typedef union panda_cb {
        Return value:
         unused
  */
-  int (*replay_net_transfer)(CPUState *env, uint32_t type, uint64_t src_addr, uint64_t dest_addr, uint32_t num_bytes);
+    int (*replay_net_transfer)(CPUState *env, uint32_t type, uint64_t src_addr, uint64_t dest_addr, uint32_t num_bytes);
 
+    /* Dummy union member.
+       This union only contains function pointers.
+       Using the cbaddr member one can compare if two union instances
+       point to the same callback function. In principle, any other
+       member could be used instead.
+       However, cbaddr provides neutral semantics for the comparisson.
+    */
+    void (*cbaddr)(void);
 } panda_cb;
 
 // Doubly linked list that stores a callback, along with its owner
@@ -703,25 +709,27 @@ struct _panda_cb_list {
     panda_cb_list *prev;
     bool enabled;
 };
-panda_cb_list* panda_cb_list_next(panda_cb_list* plist);
+panda_cb_list *panda_cb_list_next(panda_cb_list *plist);
 void panda_enable_plugin(void *plugin);
 void panda_disable_plugin(void *plugin);
 
 // Structure to store metadata about a plugin
 typedef struct panda_plugin {
-    char name[256];     // Currently basename(filename)
-    void *plugin;       // Handle to the plugin (for use with dlsym())
+    char name[256];  // Currently basename(filename)
+    void *plugin;    // Handle to the plugin (for use with dlsym())
 } panda_plugin;
 
-void   panda_register_callback(void *plugin, panda_cb_type type, panda_cb cb);
-void   panda_unregister_callbacks(void *plugin);
-bool   panda_load_plugin(const char *filename);
-bool   panda_add_arg(const char *arg, int arglen);
-void * panda_get_plugin_by_name(const char *name);
-void   panda_do_unload_plugin(int index);
-void   panda_unload_plugin(void* plugin);
-void   panda_unload_plugin_idx(int idx);
-void   panda_unload_plugins(void);
+void panda_register_callback(void *plugin, panda_cb_type type, panda_cb cb);
+void panda_enable_callback(void *plugin, panda_cb_type type, panda_cb cb);
+void panda_disable_callback(void *plugin, panda_cb_type type, panda_cb cb);
+void panda_unregister_callbacks(void *plugin);
+bool panda_load_plugin(const char *filename);
+bool panda_add_arg(const char *arg, int arglen);
+void *panda_get_plugin_by_name(const char *name);
+void panda_do_unload_plugin(int index);
+void panda_unload_plugin(void *plugin);
+void panda_unload_plugin_idx(int idx);
+void panda_unload_plugins(void);
 
 // Doesn't exist in user mode
 #ifdef CONFIG_SOFTMMU
@@ -730,7 +738,7 @@ target_phys_addr_t panda_virt_to_phys(CPUState *env, target_ulong addr);
 #endif
 
 // is_write == 1 means this is a write to the virtual memory addr of the contents of buf.
-// is_write == 0 is a read from that addr into buf.  
+// is_write == 0 is a read from that addr into buf.
 int panda_virtual_memory_rw(CPUState *env, target_ulong addr, uint8_t *buf, int len, int is_write);
 
 bool panda_flush_tb(void);
@@ -758,9 +766,10 @@ extern bool panda_tb_chaining;
 extern char panda_argv[MAX_PANDA_PLUGIN_ARGS][256];
 extern int panda_argc;
 
-
 // this stuff is used by the new qemu cmd-line arg '-os os_name'
-typedef enum OSTypeEnum { OST_UNKNOWN, OST_WINDOWS, OST_LINUX } PandaOsType;
+typedef enum OSTypeEnum { OST_UNKNOWN,
+                          OST_WINDOWS,
+                          OST_LINUX } PandaOsType;
 
 // these are set in panda_common.c via call to panda_set_os_name(os_name)
 extern PandaOsType panda_os_type;
@@ -768,13 +777,12 @@ extern char *panda_os_name;
 extern uint32_t panda_os_bits;
 extern char *panda_os_details;
 
-
 // Struct for holding a parsed key/value pair from
 // a -panda-arg plugin:key=value style argument.
 typedef struct panda_arg {
-    char *argptr;   // For internal use only
-    char *key;      // Pointer to the key string
-    char *value;    // Pointer to the value string
+    char *argptr;  // For internal use only
+    char *key;     // Pointer to the key string
+    char *value;   // Pointer to the value string
 } panda_arg;
 
 typedef struct panda_arg_list {
@@ -794,7 +802,7 @@ double panda_parse_double(panda_arg_list *args, const char *argname, double defv
 // Returns true if arg present, unless arg=false or arg=no exists.
 bool panda_parse_bool(panda_arg_list *args, const char *argname);
 const char *panda_parse_string(panda_arg_list *args, const char *argname, const char *defval);
-char** str_split(char* a_str, const char a_delim);
+char **str_split(char *a_str, const char a_delim);
 
 char *panda_plugin_path(const char *name);
 void panda_require(const char *plugin_name);

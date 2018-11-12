@@ -166,6 +166,33 @@ the `PANDA_CB_INSN_TRANSLATE` callback.
 
 ---
 
+`insn_after_exec`: called before execution of any instruction identified
+by the `PANDA_CB_INSN_TRANSLATE` callback
+
+**Callback ID**: `PANDA_CB_INSN_AFTER_EXEC`
+
+**Arguments**:
+
+* `CPUState *env`: the current CPU state
+* `target_ulong pc`: the guest PC we are about to execute
+
+**Return value**:
+
+unused
+
+**Notes**:
+
+This instrumentation is implemented by generating a call to a
+helper function just after the instruction itself is executed
+by the host through emulation.
+This is fairly expensive, which is why it's only enabled via
+the `PANDA_CB_INSN_TRANSLATE` callback.
+
+**Signature**:
+
+	int (*insn_after_exec)(CPUState *env, target_ulong pc);
+
+---
 **guest_hypercall**: called when a program inside the guest makes a
 hypercall to pass information from inside the guest to a plugin
 

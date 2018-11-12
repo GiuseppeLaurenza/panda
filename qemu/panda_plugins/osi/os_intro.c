@@ -43,6 +43,7 @@ int vmi_pgd_changed(CPUState *, target_ulong, target_ulong);
 
 PPP_PROT_REG_CB(on_get_processes)
 PPP_PROT_REG_CB(on_get_current_process)
+PPP_PROT_REG_CB(on_get_current_thread)
 PPP_PROT_REG_CB(on_get_modules)
 PPP_PROT_REG_CB(on_get_libraries)
 PPP_PROT_REG_CB(on_free_osiproc)
@@ -55,6 +56,7 @@ PPP_PROT_REG_CB(on_finished_process)
 
 PPP_CB_BOILERPLATE(on_get_processes)
 PPP_CB_BOILERPLATE(on_get_current_process)
+PPP_CB_BOILERPLATE(on_get_current_thread)
 PPP_CB_BOILERPLATE(on_get_modules)
 PPP_CB_BOILERPLATE(on_get_libraries)
 PPP_CB_BOILERPLATE(on_free_osiproc)
@@ -91,6 +93,12 @@ OsiModules *get_libraries(CPUState *env, OsiProc *p) {
     OsiModules *m = NULL;
     PPP_RUN_CB(on_get_libraries, env, p, &m);
     return m;
+}
+
+target_ulong get_current_thread(CPUState *env){
+    target_ulong thread;
+    PPP_RUN_CB(on_get_current_thread, env, &thread);
+    return thread;
 }
 
 void free_osiproc(OsiProc *p) {

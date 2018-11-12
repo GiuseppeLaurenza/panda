@@ -19,4 +19,11 @@ void helper_panda_insn_exec(target_ulong pc) {
     }
 }
 
+void helper_panda_insn_after_exec(target_ulong pc) {
+    // PANDA instrumentation: before basic block 
+    panda_cb_list *plist;
+    for(plist = panda_cbs[PANDA_CB_INSN_AFTER_EXEC]; plist != NULL; plist = panda_cb_list_next(plist)) {
+        plist->entry.insn_after_exec(env, pc);
+    }
+}
 

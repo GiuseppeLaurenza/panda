@@ -56,3 +56,9 @@ pri_simple
 loaded
 wintrospection
 pri_trace
+#My_plugin
+#pri_win7
+#libfi
+#procmon
+#cfi
+#plugin_test
