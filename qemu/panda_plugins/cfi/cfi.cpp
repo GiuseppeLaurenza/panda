@@ -217,14 +217,16 @@ void on_call(CPUState *env, target_ulong pc){
     }
     if(!found){
             if(get_library_name(env, pc)){
-                printf("VIOLATION - %lu doesn't found into whitelist for process %lu:%s\n", pc, current->pid, current->name);
+                printf("VIOLATION - %lu doesn't found into whitelist for process %lu:%s\n\n\n", pc, current->pid, current->name);
             }
     }
 }
 
 void on_call_2(CPUState *env, target_ulong pc) {
-    printf("On Call2: %lu\n", pc);
-    get_library_name(env, pc);
+    if(get_library_name(env, pc)){
+        printf("On Call2: %lu\n", pc);
+    }
+
     target_ulong thread = get_current_thread(env);
     if (panda_in_kernel(env)) {
         auto current_data = kernel_stack.find(thread);
@@ -314,7 +316,7 @@ bool init_plugin(void *self) {
     if(!init_osi_api()) return false;
     PPP_REG_CB("callstack_instr", on_call, on_call);
     PPP_REG_CB("callstack_instr", on_call_2, on_call_2);
-    PPP_REG_CB("callstack_instr", on_ret, on_ret);
+    // PPP_REG_CB("callstack_instr", on_ret, on_ret);
     // printf("CFI plugin loaded\nDEBUG mode %s\nLocal VM disk copy: %s\nFolder with stored whitelists: %s\nOn RET instruction, check stacks %lf levels\n", DEBUG ? "enabled" : "disabled", original_disk, stored_wl, POP_LEVEL);
     printf("CFI plugin loaded\nDEBUG mode %s\nFolder with stored whitelists: %s\nOn RET instruction, check stacks %lf levels\n", DEBUG ? "enabled" : "disabled", stored_wl, POP_LEVEL);
     return true;
