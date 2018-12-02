@@ -92,3 +92,12 @@ qemu/panda_plugins/syscalls/gen_default_callbacks.cpp
 qemu/panda_plugins/syscalls/proto_printer.cpp
 
 .gdb_history
+cmake-build-debug
+qemu/.idea
+qemu/.settings
+.idea/
+.settings
+*CMake*
+.project
+.cproject
+.gdbinit
