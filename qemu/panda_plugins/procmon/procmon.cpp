@@ -55,7 +55,7 @@ using namespace std;
 
 // #if defined(TARGET_I386) && !defined(TARGET_X86_64)
 
-map<pair<long unsigned int, string>, list<OsiModule>> library_map;
+map< pair <long unsigned int, string>, list<OsiModule> > library_map;
 
 
 char * convert_string(string str){
@@ -109,7 +109,7 @@ int before_block_exec(CPUState *env, TranslationBlock *tb) {
 
     OsiProcs *ps = get_processes(env);
     if (ps == NULL) {
-        printf("Process list not available.\n");
+//        printf("Process list not available.\n");
     }
     else {
         int i;
