@@ -11,6 +11,12 @@ typedef void (* removed_module_notify_t)(CPUState *env, char* proc_name, unsigne
 typedef void (* new_main_module_notify_t)(CPUState *env, char* proc_name, unsigned int pid, char* mod_name, char* mod_filename, target_ulong size, target_ulong base);
 typedef void (* removed_main_module_notify_t)(CPUState *env, char* proc_name, unsigned int pid, char* mod_name, char* mod_filename, target_ulong size, target_ulong base);
 
+typedef void (*new_kernmod_notify_t)(CPUState *env, char *mod_name, char *mod_filename, target_ulong size,
+                                     target_ulong base);
+
+typedef void (*removed_kernmod_notify_t)(CPUState *env, char *mod_name, char *mod_filename, target_ulong size,
+                                         target_ulong base);
+
 
 
 #endif
