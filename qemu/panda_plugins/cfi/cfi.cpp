@@ -24,7 +24,7 @@ PANDAENDCOMMENT */
 #include <string>
 #include <map>
 #include <set>
-
+//#include <boost/algorithm/string/replace.hpp>
 
 extern "C" {
 #include "panda_plugin.h"
@@ -45,14 +45,19 @@ void uninit_plugin(void *);
 #include "../callstack_instr/callstack_instr_ext.h"
 
 #include "../procmon/procmon.h"
+#include "../procmon/procmon_ext.h"
 using namespace std;
 
+template
+class std::map<int, int>;
 map<target_ulong,stack<target_ulong>> user_stack;
 map<target_ulong,stack<target_ulong>> kernel_stack;
+
+//stack<target_ulong> kernel_stack;
 // map<unsigned int, set<string> > wl_library_map;
 map<unsigned int, set<unsigned int> > wl_library_map;
-map<unsigned int, set< string > > wl_dll_map;
 map<unsigned int, pair<unsigned int, unsigned int>> wl_mainmodule_map;
+set<unsigned int> kern_mod_set;
 
 bool DEBUG;
 double POP_LEVEL;
@@ -71,36 +76,103 @@ string intToHexString(int intValue) {
     return hexStr;
 }
 
+
+bool check_kernel_exec(CPUState *env, target_ulong pc) {
+    OsiModules *kms = get_modules(env);
+    for (int i = 0; i < kms->num; i++) {
+        unsigned int base = kms->module[i].base;
+        unsigned int size = kms->module[i].size;
+        if (pc > base && pc < (base + size)) {
+            string dll_name = kms->module[i].name;
+            if (dll_name.find("ntkrnlpa") != string::npos) {
+                return true;
+            }
+        }
+
+    }
+    return false;
+}
+
 bool get_library_name(CPUState *env, target_ulong pc, string appendix){
-    OsiProc *current = get_current_process(env);
-    OsiModules *ms = get_libraries(env, current);
-    target_ulong pid = current->pid;
-    bool found = false;
-    string dll_name = "";
-    string file_name = "";
-    target_ulong base_found = 0;
-    if (ms != NULL) {
-        for (int i = 0; i < ms->num; i++){
-            unsigned int base = ms->module[i].base;
-            unsigned int size = ms->module[i].size;
-            if(pc>base && pc<(base+size)){
-                dll_name = ms->module[i].name;
-                file_name = ms->module[i].file;
-                base_found = base;
-                found = true;
-                break;
+    OsiProcs *ps = get_processes(env);
+    if (ps == NULL) {
+        return false;
+    }
+    int i;
+    for (i = 0; i < ps->num; i++) {
+        OsiProc *current = &(ps->proc[i]);
+        OsiModules *ms = get_libraries(env, current);
+        target_ulong pid = current->pid;
+
+        if (ms != NULL) {
+            for (int i = 0; i < ms->num; i++) {
+                unsigned int base = ms->module[i].base;
+                unsigned int size = ms->module[i].size;
+                if (pc > base && pc < (base + size)) {
+                    string dll_name = ms->module[i].name;
+                    string file_name = ms->module[i].file;
+                    target_ulong base_found = base;
+                    cout << pid << " - " << appendix << " - Full Address " << std::hex << pc << "-" << std::dec << pc
+                         << ", Virtual Address " << std::hex << pc - base_found << "-" << std::dec << pc - base_found
+                         << " is in " << dll_name << " with full path as: " << file_name << endl;
+//                    free_osimodules(ms);
+//                    free_osiprocs(ps);
+                    return true;
+                }
+//                free_osimodules(ms);
             }
         }
     }
-    if(found){
-        cout << pid << " - " << appendix << " - Full Address "<< std::hex << pc << "-" << std::dec << pc << ", Virtual Address " << std::hex << pc - base_found<< "-" << std::dec << pc - base_found << " is in " << dll_name << " with full path as: "<< file_name <<endl;
-        return true;
-    }else{
-        // cout << "Address " << pc << endl;
-        return false;
+//    free_osiprocs(ps);
+    OsiModules *kms = get_modules(env);
+    for (i = 0; i < kms->num; i++) {
+        unsigned int base = kms->module[i].base;
+        unsigned int size = kms->module[i].size;
+        if (pc > base && pc < (base + size)) {
+            OsiProc *current = get_current_process(env);
+            string dll_name = kms->module[i].name;
+            string file_name = kms->module[i].file;
+            target_ulong base_found = base;
+            cout << "[" << current->pid << "] " << appendix << " - Full Address " << std::hex << pc << "-" << std::dec
+                 << pc << ", Virtual Address " << std::hex << pc - base_found << "-" << std::dec << pc - base_found
+                 << " is in " << dll_name << " with full path as: " << file_name << endl;
+            return true;
+        }
+
+    }
+    return false;
+}
+
+void mod_kernel_load(CPUState *env, char *mod_name, char *mod_filename, target_ulong size, target_ulong base) {
+    if (DEBUG) {
+        printf("New Kernel Module loaded:%s - %s \n", mod_name, mod_filename);
+    }
+    string current_module = string(mod_filename);
+    std::transform(current_module.begin(), current_module.end(), current_module.begin(), ::tolower);
+    current_module.erase(0, 3);
+    replace(current_module.begin(), current_module.end(), '\\', '_');
+    current_module += ".wl";
+    current_module.insert(0, stored_wl);
+//    string prova = regex_replace( current_module, regex("stemRoot"), "windows");
+    string to_replace = "stemroot";
+    current_module.replace(current_module.find(to_replace), to_replace.length(), "windows");
+    ifstream f(current_module.c_str());
+    string line;
+    while (getline(f, line)) {
+        stringstream ss;
+        unsigned int x;
+        ss << line;
+        ss >> x;
+        kern_mod_set.insert(x + base);
     }
 }
 
+void mod_kernel_remove(CPUState *env, char *mod_name, char *mod_filename, target_ulong size, target_ulong base) {
+    if (DEBUG) {
+        printf("Removed Kernel Module:%s - %s \n", mod_name, mod_filename);
+    }
+    //TODO ADD CODE FOR REMOVE KERNEL
+}
 
 void new_process_create(CPUState *env, unsigned int pid, char *proc_name) {
     if (DEBUG) {
@@ -130,36 +202,18 @@ void new_module_load(CPUState *env, char *proc_name, unsigned int pid, char *mod
     ifstream f (current_module);
     string line;
     auto found_element = wl_library_map.find(pid);
-    auto found_dll = wl_dll_map.find(pid);
     set<unsigned int> address_list;
-    set<string> dll_list;
     if(found_element!=wl_library_map.end()){
         address_list = found_element->second;
-        dll_list = found_dll->second;
     }
     while(getline(f, line)) {
-        // std::transform(line.begin(), line.end(), line.begin(), ::tolower);
         stringstream ss;
-        // ss << std::hex << line;
         unsigned int x;
         ss << line;
         ss >> x;
-
-        //  if(current_module.find("ntdll")!= std::string::npos){
-        //     // if(pid==1556){
-                //cout<<  x  << endl;
-        //      if(x==(unsigned int)195034){
-        //          cout <<"FOUND ADDRESS"<<endl;
-        //      }
-        //             // cout << x << endl;
-        //     // }
-        //}
         address_list.insert(x + base);
     }
-    dll_list.insert(string(mod_name));
-    // cout << address_list.size() << endl;
     wl_library_map[pid] = address_list;
-    wl_dll_map[pid] = dll_list;
 }
 
 void module_unload(CPUState *env, char *proc_name, unsigned int pid, char *mod_name, char *mod_filename, target_ulong size, target_ulong base) {
@@ -203,134 +257,239 @@ void main_module_unload(CPUState *env, char *proc_name, unsigned int pid, char *
     if (DEBUG) {
         printf("Unloaded Main Module %s\n", mod_name);
     }
+    //TODO ADD unloaded mode code
 }
 
 // bool check_wl(CPUState *env, target_ulong pc) {
 //     return true;
 // }
 
-void on_call(CPUState *env, target_ulong pc){
-    // printf("CURRENT PC:%ul\n",pc);
-    bool found=false;
-    // bool missing_dll=false;
-    OsiProc *current = get_current_process(env);
-    auto main_module_range_elem = wl_mainmodule_map.find(current->pid);
-    if(main_module_range_elem!=wl_mainmodule_map.end()){
-        auto range = main_module_range_elem->second;
-        if(pc>range.first && pc>range.second){
-            found=true;
-            // printf("%lu found into whitelist for process %s\n", pc, current->name);
-        }
+
+
+
+bool check_return_user_address(OsiProc *current, target_ulong current_pc) {
+
+}
+
+bool check_return_address(OsiProc *current, target_ulong current_pc, bool kernel_state) {
+    char idle_name[] = "Idle";
+    char system_name[] = "System";
+//    if(current->pid == 0){
+//        return true;
+//    }
+
+//    if(strcmp(current->name, system_name)==0 && current->ppid==0){
+//        return true;
+//    }
+    map<target_ulong, stack<target_ulong>> current_map;
+    if (kernel_state) {
+        current_map = kernel_stack;
     }else{
-        auto wl_library = wl_library_map.find(current->pid);
-        set<unsigned int> address_list;
-        if(wl_library!=wl_library_map.end()){
-            address_list = wl_library->second;
-            auto check = address_list.find(pc);
-            if(check!=address_list.end()){
-                found=true;
-                // printf("%lu found into whitelist for process %lu:%s\n", pc,current->pid, current->name);
+        current_map = user_stack;
+    }
+    auto current_data = current_map.find(current->pid);
+    if (current_data != current_map.end()) {
+        auto current_stack = current_data->second;
+//            for (int i = 0; i < POP_LEVEL; i++) {
+//                if(current_stack.empty()){
+//                    return false;
+//                }
+        while (!current_stack.empty()) {
+            target_ulong temp = current_stack.top();
+            current_stack.pop();
+            if (temp == current_pc) {
+                if (DEBUG) {
+                    printf("[%lu] - %u Legitimate return address\n", current->pid, current_pc);
+                }
+                return true;
             }
         }
-        // else{
-        //     printf("Missing dll library for pid %d\n",current->pid);
-        // }
-        // else{
-            // missing_dll=true;
-        // }
     }
+    return false;
+}
+
+
+bool check_destination_address(OsiProc *current, target_ulong pc) {
+    char idle_name[] = "Idle";
+    char system_name[] = "System";
+    if (current->pid == 0) {
+        return true;
+    }
+
+    if (strcmp(current->name, system_name) == 0 && current->ppid == 0) {
+        return true;
+    }
+    //    if(current->ppid == 0){
+//        printf("Check %lu\n", current->pid);
+//        return true;
+//    }
+
+//    if (current->pid == 4){
+//        return true;
+//    }
+//    if (wl_library_map.size()==0){
+//        return true;
+//    }
+    auto wl_library = wl_library_map.find(current->pid);
+    set<unsigned int> address_list;
+    if (wl_library != wl_library_map.end()) {
+        address_list = wl_library->second;
+        auto check = address_list.find(pc);
+        if (check != address_list.end()) {
+            if (DEBUG) {
+                printf("%lu found into whitelist for process %lu:%s\n", pc, current->pid, current->name);
+            }
+            return true;
+
+        }
+    }
+    auto main_module_range_elem = wl_mainmodule_map.find(current->pid);
+    if (main_module_range_elem != wl_mainmodule_map.end()) {
+        auto range = main_module_range_elem->second;
+        if (pc > range.first && pc > range.second) {
+            if (DEBUG) {
+                printf("%lu found into whitelist for process %lu:%s\n", pc, current->pid, current->name);
+            }
+            return true;
+        }
+    }
+    if (kern_mod_set.find(pc) != kern_mod_set.end()) {
+        if (DEBUG) {
+            printf("%lu found into whitelist for process %lu:%s\n", pc, current->pid, current->name);
+        }
+        return true;
+    }
+    return false;
+}
+
+
+void on_call(CPUState *env, target_ulong pc) {
+    // printf("CURRENT PC:%ul\n",pc);
+//    get_library_name(env, pc, "On Call - Destination");
+    OsiProc *current = get_current_process(env);
+    // bool missing_dll=false;
+    bool found = check_destination_address(current, pc);
     if(!found){
-            // if(missing_dll){
-                // printf("MISSING DLL\n");
-            // }else{
-                if(get_library_name(env, pc, "On Call - Destination")){
+//        if(get_library_name(env, pc, "On Call - Destination")) {
+        update_lists(env);
+        found = check_destination_address(current, pc);
+        if (!found) {
+            if (check_kernel_exec(env, pc)) {
+                get_library_name(env, pc, "On Call - Destination");
                     printf("VIOLATION - %lu doesn't found into whitelist for process %lu:%s\n\n\n", pc, current->pid, current->name);
                 }
-                // auto wl_library = wl_library_map.find(current->pid);
-                // set<unsigned int> address_list;
-                // // cout << "Size:" << wl_library.size()<<endl;
-                // if(wl_library!=wl_library_map.end()){
-                //     printf("IN IF\n");
-                //     address_list = wl_library->second;
-                //     cout << "Size:" << address_list.size()<<endl;
-                //     std::set<unsigned int>::iterator it = address_list.begin();  
-                //     // Iterate till the end of set
-                //     while (it != address_list.end())
-                //     {
-                //         // Print the element
-                //         std::cout << (*it) << " , ";
-                //         //Increment the iterator
-                //         it++;
-                //     }                    
-                //  }
-            // }
+        }
+//        }
+        // }
     }
 }
 
 void on_call_2(CPUState *env, target_ulong pc) {
-    // get_library_name(env, pc, "On Call - Source");
-
-    target_ulong thread = get_current_thread(env);
-    if (panda_in_kernel(env)) {
-        auto current_data = kernel_stack.find(thread);
+    bool kernel_state = panda_in_kernel(env);
+//    target_ulong thread = get_current_thread(env);
+    OsiProc *current = get_current_process(env);
+    if (DEBUG) {
+//        get_library_name(env, pc, "On Call - Source");
+        printf("[%s - %lu] Source %lu\n", kernel_state ? "KERNEL" : "USER", current->pid, pc);
+    }
+    target_ulong pid = current->pid;
+    if (kernel_state) {
+        if (pc == 2255779228) {
+            printf("HERE\n");
+        }
+        auto current_data = kernel_stack.find(pid);
         stack<target_ulong> current_stack;
         if(current_data!=kernel_stack.end()){
             current_stack=current_data->second;
         }       
         current_stack.push(pc);
-        kernel_stack[thread] =  current_stack;
+        kernel_stack[pid] = current_stack;
     } else {
-        auto current_data = user_stack.find(thread);
+        auto current_data = user_stack.find(pid);
         stack<target_ulong> current_stack;
         if(current_data!=user_stack.end()){
             current_stack=current_data->second;
         }       
         current_stack.push(pc);
-        user_stack[thread]=current_stack;
+        user_stack[pid] = current_stack;
     }
 }
 
 
 void on_ret(CPUState *env, target_ulong pc) {
-    int i;
-    // printf("%s: On Ret from %lu to %lu\n", panda_in_kernel(env) ? "KERNEL" : "USER", pc, panda_current_pc(env));
-    target_ulong thread = get_current_thread(env);
-    target_ulong temp;
-    for (i = 0; i < POP_LEVEL; i++) {
-        if (panda_in_kernel(env)) {
-            auto current_data = kernel_stack.find(thread);
-            stack<target_ulong> current_stack;
-            if(current_data!=kernel_stack.end()){
-                current_stack=current_data->second;    
-                temp = current_stack.top();
-                current_stack.pop();
-                // printf("%u - %u - %u,%u\n", temp, panda_current_pc(env), kernel_stack.size(), user_stack.size());
-                if (temp == panda_current_pc(env)) {
-                    printf("VALID ADDRESS\n");
-                    return;
-                }
-            } 
-        } else {
-            auto current_data = kernel_stack.find(thread);
-            stack<target_ulong> current_stack;
-            if(current_data!=kernel_stack.end()){
-                current_stack=current_data->second;    
-                temp = current_stack.top();
-                current_stack.pop();
-                // printf("%u - %u - %u,%u\n", temp, panda_current_pc(env), kernel_stack.size(), user_stack.size());
-                if (temp == panda_current_pc(env)) {
-                    printf("VALID ADDRESS\n");
-                    return;
-                }
-            }
+
+    OsiProc *current = get_current_process(env);
+
+    target_ulong current_pc = panda_current_pc(env);
+    bool kernel_state = panda_in_kernel(env);
+    if (!check_return_address(current, current_pc, kernel_state)) {
+        if (!check_return_address(current, current_pc, !kernel_state)) {
+            get_library_name(env, current_pc, "On Ret");
+            printf("[%lu] %s - VIOLATION - Current address:%u\n", current->pid, kernel_state ? "KERNEL" : "USER",
+                   current_pc);
         }
 
     }
-    // printf("%s - VIOLATION - Current address:%u - %lu,%lu\n", panda_in_kernel(env) ? "KERNEL" : "USER",panda_current_pc(env), kernel_stack.size(), user_stack.size());
-    if(get_library_name(env, pc, "On Ret - Destination")){
-        printf("%s - VIOLATION - Current address:%u - %lu,%lu\n", panda_in_kernel(env) ? "KERNEL" : "USER",panda_current_pc(env), kernel_stack.size(), user_stack.size());
-    }
 }
+
+//void on_ret(CPUState *env, target_ulong pc) {
+//    get_library_name(env,pc, "Ret - Destination");
+//    get_library_name(env, panda_current_pc(env),"Ret - Panda_current");
+//    if(!get_library_name(env,pc, "Ret - Destination")){
+//        return;
+//    }
+
+//    int i;
+    // printf("%s: On Ret from %lu to %lu\n", panda_in_kernel(env) ? "KERNEL" : "USER", pc, panda_current_pc(env));
+//    target_ulong thread = get_current_thread(env);
+//    OsiProc * current = get_current_process(env);
+//    target_ulong pid= current->pid;
+//    target_ulong temp;
+//    target_ulong current_pc = panda_current_pc(env);
+//    bool kernel_state = panda_in_kernel(env);
+//    for (i = 0; i < POP_LEVEL; i++) {
+//        if (kernel_state) {
+//            auto current_data = kernel_stack.find(pid);
+//            stack<target_ulong> current_stack;
+//            if(current_data!=kernel_stack.end()){
+//                current_stack=current_data->second;
+//                temp = current_stack.top();
+//                current_stack.pop();
+//                if (temp == current_pc) {
+//                    printf("FOUND %u - %u\n", current_pc, current_stack.size());
+//                    return;
+//                }
+////                if(temp==pc){
+////                    printf("VALID ADDRESS\n");
+////                    return;
+////                }
+//            }
+//        } else {
+//            auto current_data = kernel_stack.find(pid);
+//            stack<target_ulong> current_stack;
+//            if(current_data!=kernel_stack.end()){
+//                current_stack=current_data->second;
+//                temp = current_stack.top();
+//                current_stack.pop();
+//                if (temp == current_pc) {
+//                    printf("FOUND %u - %u\n", current_pc, current_stack.size());
+//                    return;
+//                }
+////                if(temp==pc){
+////                    printf("VALID ADDRESS\n");
+////                    return;
+////                }
+//            }
+//        }
+//
+//    }
+//    // printf("%s - VIOLATION - Current address:%u - %lu,%lu\n", panda_in_kernel(env) ? "KERNEL" : "USER",panda_current_pc(env), kernel_stack.size(), user_stack.size());
+////    if(get_library_name(env, pc, "On Ret - Destination")){
+////    get_library_name(env,pc, "Ret - Destination");
+////    get_library_name(env, panda_current_pc(env),"Ret - Panda_current");
+//        printf("[%lu] %s - VIOLATION - Current address:%u - %lu,%lu\n",pid, kernel_state ? "KERNEL" : "USER",current_pc, kernel_stack.size(), user_stack.size());
+////    }
+//}
 
 void uninit_plugin(void *self) {
     panda_disable_precise_pc();
@@ -339,33 +498,36 @@ void uninit_plugin(void *self) {
 }
 
 bool init_plugin(void *self) {
-#if defined(TARGET_I386)  //&& !defined(TARGET_X86_64)
+//#if defined(TARGET_I386)  //&& !defined(TARGET_X86_64)
     printf("Initializing plugin cfi\n");
     args = panda_get_args("cfi");
     DEBUG = panda_parse_bool(args, "DEBUG");
-    DEBUG = true;
+//    DEBUG = true;
     POP_LEVEL = panda_parse_double(args, "pop", 100.0);
     // original_disk = panda_parse_string(args,"original_disk","/home/giuseppe/qcow_copy/");
     stored_wl = panda_parse_string(args,"stored_wl","/home/giuseppe/PassaggioDati/file_wl/");
     panda_enable_precise_pc();
     panda_require("procmon");
-    PPP_REG_CB("procmon", new_process_notify, new_process_create);
+    if (!init_procmon_api()) return false;
+//    PPP_REG_CB("procmon", new_process_notify, new_process_create);
     // PPP_REG_CB("procmon", removed_process_notify, exit_process);
-    PPP_REG_CB("procmon", new_module_notify, new_module_load);
+//    PPP_REG_CB("procmon", new_module_notify, new_module_load);
     // PPP_REG_CB("procmon", removed_module_notify, module_unload);
-    PPP_REG_CB("procmon", new_main_module_notify, main_module_load);
+//    PPP_REG_CB("procmon", new_main_module_notify, main_module_load);
     // PPP_REG_CB("procmon", removed_main_module_notify, main_module_unload);
+//    PPP_REG_CB("procmon", removed_kernmod_notify, mod_kernel_remove);
+//    PPP_REG_CB("procmon",new_kernmod_notify, mod_kernel_load);
     panda_require("callstack_instr");
     if (!init_callstack_instr_api()) return false;
     if(!init_osi_api()) return false;
     PPP_REG_CB("callstack_instr", on_call_2, on_call_2);
-    PPP_REG_CB("callstack_instr", on_call, on_call);
-    // PPP_REG_CB("callstack_instr", on_ret, on_ret);
+    // PPP_REG_CB("callstack_instr", on_call, on_call);
+    PPP_REG_CB("callstack_instr", on_ret, on_ret);
     // printf("CFI plugin loaded\nDEBUG mode %s\nLocal VM disk copy: %s\nFolder with stored whitelists: %s\nOn RET instruction, check stacks %lf levels\n", DEBUG ? "enabled" : "disabled", original_disk, stored_wl, POP_LEVEL);
     printf("CFI plugin loaded\nDEBUG mode %s\nFolder with stored whitelists: %s\nOn RET instruction, check stacks %lf levels\n", DEBUG ? "enabled" : "disabled", stored_wl, POP_LEVEL);
     return true;
-#else
-    cout << "CFI plugin not supported on this architecture" << endl;
-    return false;
-#endif
+//#else
+//    cout << "CFI plugin not supported on this architecture" << endl;
+//    return false;
+//#endif
 }
