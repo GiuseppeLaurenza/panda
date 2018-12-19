@@ -15,6 +15,7 @@ PANDAENDCOMMENT */
 // the PRIx64 macro
 #define __STDC_FORMAT_MACROS
 
+
 #include <algorithm>
 #include <sstream>
 #include <fstream>
@@ -35,6 +36,7 @@ extern "C" {
 #include "pandalog.h"
 #include "rr_log.h"
 #include "cpu.h"
+#include "disas.h"
 #include "../osi/osi_types.h"
 #include "../osi/osi_ext.h"
 
@@ -58,7 +60,8 @@ map<target_ulong,stack<target_ulong>> kernel_stack;
 map<unsigned int, set<unsigned int> > wl_library_map;
 map<unsigned int, pair<unsigned int, unsigned int>> wl_mainmodule_map;
 set<unsigned int> kern_mod_set;
-
+set<unsigned int> swap_context_address_set;
+unsigned int swap_context_relative_address[] = {517399, 810965, 489618, 489159, 517789, 491214};
 bool DEBUG;
 double POP_LEVEL;
 panda_arg_list *args;
@@ -76,6 +79,21 @@ string intToHexString(int intValue) {
     return hexStr;
 }
 
+bool load_SwapContext_Address(CPUState *env) {
+    OsiModules *kms = get_modules(env);
+    unsigned int base;
+    for (int i = 0; i < kms->num; i++) {
+        string module_name = kms->module[i].name;
+        if (!module_name.compare("ntoskrnl.exe")) {
+            base = kms->module[i].base;
+            break;
+        }
+    }
+    for (int i = 0; i < (sizeof(swap_context_relative_address) / sizeof(swap_context_relative_address[0])); i++) {
+        swap_context_address_set.insert((base + swap_context_relative_address[i]));
+    }
+    return true;
+}
 
 bool check_kernel_exec(CPUState *env, target_ulong pc) {
     OsiModules *kms = get_modules(env);
@@ -260,47 +278,42 @@ void main_module_unload(CPUState *env, char *proc_name, unsigned int pid, char *
     //TODO ADD unloaded mode code
 }
 
-// bool check_wl(CPUState *env, target_ulong pc) {
-//     return true;
-// }
 
-
-
-
-bool check_return_user_address(OsiProc *current, target_ulong current_pc) {
-
-}
-
-bool check_return_address(OsiProc *current, target_ulong current_pc, bool kernel_state) {
-    char idle_name[] = "Idle";
-    char system_name[] = "System";
-//    if(current->pid == 0){
-//        return true;
-//    }
-
-//    if(strcmp(current->name, system_name)==0 && current->ppid==0){
-//        return true;
-//    }
+bool check_return_address(CPUState *env, OsiProc *current, target_ulong current_pc, bool kernel_state) {
+//    char idle_name[] = "Idle";
+//    char system_name[] = "System";
     map<target_ulong, stack<target_ulong>> current_map;
+    target_ulong current_key;
+    if (kernel_state) {
+        if (swap_context_address_set.count(current_pc)) {
+            return true;
+        }
+    }
     if (kernel_state) {
         current_map = kernel_stack;
+        current_key = get_current_thread(env);
+        current_key = current->pid;
     }else{
         current_map = user_stack;
+        current_key = current->pid;
     }
-    auto current_data = current_map.find(current->pid);
+    auto current_data = current_map.find(current_key);
     if (current_data != current_map.end()) {
         auto current_stack = current_data->second;
-//            for (int i = 0; i < POP_LEVEL; i++) {
-//                if(current_stack.empty()){
-//                    return false;
-//                }
         while (!current_stack.empty()) {
             target_ulong temp = current_stack.top();
             current_stack.pop();
             if (temp == current_pc) {
+#if !defined(TARGET_ARM)
                 if (DEBUG) {
-                    printf("[%lu] - %u Legitimate return address\n", current->pid, current_pc);
+//                            printf("[%lu - %lu] - %u - ESP:%lu Legitimate return address\n", current->pid, current_key, current_pc, env->regs[R_ESP]);
+                        printf("[%s] [%lu - %lu] Legitimate Return address: %lu - ESP: %lu\n", kernel_state ? "KERNEL" : "USER", current->pid, current_key, current_pc, env->regs[R_ESP]);
                 }
+//                    if(current_pc == 2188178711 || current_pc == 2188150471|| current_pc == 2188150930 || current_pc == 2188179101 || current_pc == 2188472277){
+                if(current_pc== 2188152526){
+                    printf("[%s] [%lu - %lu] Legitimate Return address: %lu - ESP: %lu\n", kernel_state ? "KERNEL" : "USER", current->pid, get_current_thread(env), current_pc, env->regs[R_ESP]);
+                }
+#endif
                 return true;
             }
         }
@@ -319,17 +332,7 @@ bool check_destination_address(OsiProc *current, target_ulong pc) {
     if (strcmp(current->name, system_name) == 0 && current->ppid == 0) {
         return true;
     }
-    //    if(current->ppid == 0){
-//        printf("Check %lu\n", current->pid);
-//        return true;
-//    }
 
-//    if (current->pid == 4){
-//        return true;
-//    }
-//    if (wl_library_map.size()==0){
-//        return true;
-//    }
     auto wl_library = wl_library_map.find(current->pid);
     set<unsigned int> address_list;
     if (wl_library != wl_library_map.end()) {
@@ -386,24 +389,43 @@ void on_call(CPUState *env, target_ulong pc) {
 
 void on_call_2(CPUState *env, target_ulong pc) {
     bool kernel_state = panda_in_kernel(env);
-//    target_ulong thread = get_current_thread(env);
+//    char system_name[] = "System";
     OsiProc *current = get_current_process(env);
+    target_ulong thread = get_current_thread(env);
+#ifndef TARGET_ARM
     if (DEBUG) {
 //        get_library_name(env, pc, "On Call - Source");
-        printf("[%s - %lu] Source %lu\n", kernel_state ? "KERNEL" : "USER", current->pid, pc);
+        printf("[%s] [%lu - %lu] Source %lu - ESP: %lu\n", kernel_state ? "KERNEL" : "USER", current->pid, thread, pc, env->regs[R_ESP]);
     }
+//        if(pc == 2188178711 || pc == 2188150471|| pc == 2188150930 || pc == 2188179101 || pc == 2188472277){
+//        if(pc== 2188152526){
+//            get_library_name(env, pc, "SPECIAL RET:");
+//            FILE *fp;
+//            fp = fopen("/home/giuseppe/panda/memory_dump.raw","w+");
+//            panda_memsavep(fp);
+//            fp = fopen("/home/giuseppe/panda/test.txt", "w+");
+//            fprintf(fp, "RET= 826C8ECE\n");
+//            fprintf(fp, "tb->pc - size=34\n");
+//            target_disas(fp,2188152492, 42, 2);
+//            fprintf(fp, "\n\n cpu_get_tb_cpu_state");
+//            target_disas(fp,2188152526, 1518, 2);
+//            target_disas(fp, 2188152333, 1024, 2);
+//            fclose(fp);
+//            printf("[%s] [%lu - %lu] Source %lu - ESP: %lu\n", kernel_state ? "KERNEL" : "USER", current->pid, thread, pc, env->regs[R_ESP]);
+//        }
+#endif
     target_ulong pid = current->pid;
+    ///// COMMENT THIS TO USE THREAD
+    thread = pid;
     if (kernel_state) {
-        if (pc == 2255779228) {
-            printf("HERE\n");
-        }
-        auto current_data = kernel_stack.find(pid);
+//        auto current_data = kernel_stack.find(pid);
+        auto current_data = kernel_stack.find(thread);
         stack<target_ulong> current_stack;
         if(current_data!=kernel_stack.end()){
             current_stack=current_data->second;
         }       
         current_stack.push(pc);
-        kernel_stack[pid] = current_stack;
+        kernel_stack[thread] = current_stack;
     } else {
         auto current_data = user_stack.find(pid);
         stack<target_ulong> current_stack;
@@ -413,84 +435,28 @@ void on_call_2(CPUState *env, target_ulong pc) {
         current_stack.push(pc);
         user_stack[pid] = current_stack;
     }
+
 }
 
 
 void on_ret(CPUState *env, target_ulong pc) {
-
+    if (swap_context_address_set.size() < 1) {
+        load_SwapContext_Address(env);
+    }
     OsiProc *current = get_current_process(env);
-
     target_ulong current_pc = panda_current_pc(env);
     bool kernel_state = panda_in_kernel(env);
-    if (!check_return_address(current, current_pc, kernel_state)) {
-        if (!check_return_address(current, current_pc, !kernel_state)) {
+    if (!check_return_address(env, current, current_pc, kernel_state)) {
+//        if (!check_return_address(env, current, current_pc, !kernel_state)) {
             get_library_name(env, current_pc, "On Ret");
-            printf("[%lu] %s - VIOLATION - Current address:%u\n", current->pid, kernel_state ? "KERNEL" : "USER",
-                   current_pc);
-        }
+#ifndef TARGET_ARM
+        printf("[%s] [%lu - %lu] %s - VIOLATION - Current address:%u - ESP:%lu\n", kernel_state ? "KERNEL" : "USER", current->pid, get_current_thread(env), current->name,
+               current_pc, env->regs[R_ESP]);
+#endif
+//        }
 
     }
 }
-
-//void on_ret(CPUState *env, target_ulong pc) {
-//    get_library_name(env,pc, "Ret - Destination");
-//    get_library_name(env, panda_current_pc(env),"Ret - Panda_current");
-//    if(!get_library_name(env,pc, "Ret - Destination")){
-//        return;
-//    }
-
-//    int i;
-    // printf("%s: On Ret from %lu to %lu\n", panda_in_kernel(env) ? "KERNEL" : "USER", pc, panda_current_pc(env));
-//    target_ulong thread = get_current_thread(env);
-//    OsiProc * current = get_current_process(env);
-//    target_ulong pid= current->pid;
-//    target_ulong temp;
-//    target_ulong current_pc = panda_current_pc(env);
-//    bool kernel_state = panda_in_kernel(env);
-//    for (i = 0; i < POP_LEVEL; i++) {
-//        if (kernel_state) {
-//            auto current_data = kernel_stack.find(pid);
-//            stack<target_ulong> current_stack;
-//            if(current_data!=kernel_stack.end()){
-//                current_stack=current_data->second;
-//                temp = current_stack.top();
-//                current_stack.pop();
-//                if (temp == current_pc) {
-//                    printf("FOUND %u - %u\n", current_pc, current_stack.size());
-//                    return;
-//                }
-////                if(temp==pc){
-////                    printf("VALID ADDRESS\n");
-////                    return;
-////                }
-//            }
-//        } else {
-//            auto current_data = kernel_stack.find(pid);
-//            stack<target_ulong> current_stack;
-//            if(current_data!=kernel_stack.end()){
-//                current_stack=current_data->second;
-//                temp = current_stack.top();
-//                current_stack.pop();
-//                if (temp == current_pc) {
-//                    printf("FOUND %u - %u\n", current_pc, current_stack.size());
-//                    return;
-//                }
-////                if(temp==pc){
-////                    printf("VALID ADDRESS\n");
-////                    return;
-////                }
-//            }
-//        }
-//
-//    }
-//    // printf("%s - VIOLATION - Current address:%u - %lu,%lu\n", panda_in_kernel(env) ? "KERNEL" : "USER",panda_current_pc(env), kernel_stack.size(), user_stack.size());
-////    if(get_library_name(env, pc, "On Ret - Destination")){
-////    get_library_name(env,pc, "Ret - Destination");
-////    get_library_name(env, panda_current_pc(env),"Ret - Panda_current");
-//        printf("[%lu] %s - VIOLATION - Current address:%u - %lu,%lu\n",pid, kernel_state ? "KERNEL" : "USER",current_pc, kernel_stack.size(), user_stack.size());
-////    }
-//}
-
 void uninit_plugin(void *self) {
     panda_disable_precise_pc();
     panda_free_args(args);
@@ -498,7 +464,7 @@ void uninit_plugin(void *self) {
 }
 
 bool init_plugin(void *self) {
-//#if defined(TARGET_I386)  //&& !defined(TARGET_X86_64)
+//#if defined(TARGET_I386)  || defined(TARGET_X86_64)
     printf("Initializing plugin cfi\n");
     args = panda_get_args("cfi");
     DEBUG = panda_parse_bool(args, "DEBUG");
@@ -509,19 +475,19 @@ bool init_plugin(void *self) {
     panda_enable_precise_pc();
     panda_require("procmon");
     if (!init_procmon_api()) return false;
-//    PPP_REG_CB("procmon", new_process_notify, new_process_create);
-    // PPP_REG_CB("procmon", removed_process_notify, exit_process);
-//    PPP_REG_CB("procmon", new_module_notify, new_module_load);
-    // PPP_REG_CB("procmon", removed_module_notify, module_unload);
-//    PPP_REG_CB("procmon", new_main_module_notify, main_module_load);
-    // PPP_REG_CB("procmon", removed_main_module_notify, main_module_unload);
-//    PPP_REG_CB("procmon", removed_kernmod_notify, mod_kernel_remove);
-//    PPP_REG_CB("procmon",new_kernmod_notify, mod_kernel_load);
+    PPP_REG_CB("procmon", new_process_notify, new_process_create);
+    PPP_REG_CB("procmon", removed_process_notify, exit_process);
+    PPP_REG_CB("procmon", new_module_notify, new_module_load);
+    PPP_REG_CB("procmon", removed_module_notify, module_unload);
+    PPP_REG_CB("procmon", new_main_module_notify, main_module_load);
+    PPP_REG_CB("procmon", removed_main_module_notify, main_module_unload);
+    PPP_REG_CB("procmon", removed_kernmod_notify, mod_kernel_remove);
+    PPP_REG_CB("procmon", new_kernmod_notify, mod_kernel_load);
     panda_require("callstack_instr");
     if (!init_callstack_instr_api()) return false;
     if(!init_osi_api()) return false;
     PPP_REG_CB("callstack_instr", on_call_2, on_call_2);
-    // PPP_REG_CB("callstack_instr", on_call, on_call);
+    PPP_REG_CB("callstack_instr", on_call, on_call);
     PPP_REG_CB("callstack_instr", on_ret, on_ret);
     // printf("CFI plugin loaded\nDEBUG mode %s\nLocal VM disk copy: %s\nFolder with stored whitelists: %s\nOn RET instruction, check stacks %lf levels\n", DEBUG ? "enabled" : "disabled", original_disk, stored_wl, POP_LEVEL);
     printf("CFI plugin loaded\nDEBUG mode %s\nFolder with stored whitelists: %s\nOn RET instruction, check stacks %lf levels\n", DEBUG ? "enabled" : "disabled", stored_wl, POP_LEVEL);
@@ -531,3 +497,4 @@ bool init_plugin(void *self) {
 //    return false;
 //#endif
 }
+
