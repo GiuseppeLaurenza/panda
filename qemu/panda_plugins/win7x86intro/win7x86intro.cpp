@@ -32,7 +32,7 @@ extern "C" {
 bool init_plugin(void *);
 void uninit_plugin(void *);
 void on_get_current_process(CPUState *env, OsiProc **out_p);
-// void on_get_current_thread(CPUState *env, target_ulong *thread);
+void on_get_current_thread(CPUState *env, target_ulong *thread);
 void on_get_processes(CPUState *env, OsiProcs **out_ps);
 void on_get_libraries(CPUState *env, OsiProc *p, OsiModules **out_ms);
 void on_free_osiproc(OsiProc *p);
@@ -220,6 +220,7 @@ static PTR get_current_proc(CPUState *env) {
 static PTR get_current_thread(CPUState *env) {
     PTR thread;
     PTR kpcr = get_kpcr(env);
+    // Read KPCR->CurrentThread
     panda_virtual_memory_rw(env, kpcr+KPCR_CURTHREAD_OFF, (uint8_t *)&thread, sizeof(PTR), false);
     return thread;
 }
@@ -450,7 +451,7 @@ bool init_plugin(void *self) {
     // panda_require("osi");
 #ifdef TARGET_I386
     PPP_REG_CB("osi", on_get_current_process, on_get_current_process);
-    // PPP_REG_CB("osi", on_get_current_thread, on_get_current_thread);
+    PPP_REG_CB("osi", on_get_current_thread, on_get_current_thread);
     PPP_REG_CB("osi", on_get_processes, on_get_processes);
     PPP_REG_CB("osi", on_get_libraries, on_get_libraries);
     PPP_REG_CB("osi", on_get_modules, on_get_modules);
