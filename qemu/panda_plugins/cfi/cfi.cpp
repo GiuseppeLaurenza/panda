@@ -238,30 +238,30 @@ void module_unload(CPUState *env, char *proc_name, unsigned int pid, char *mod_n
     if (DEBUG) {
         printf("Unloaded Module %s\n", mod_name);
     }
-    string current_module = string(mod_filename);
-    current_module.erase(0,3);
-    replace( current_module.begin(), current_module.end(), '\\', '_');
-    current_module += ".wl";
-    current_module.insert(0, stored_wl);
-    std::transform(current_module.begin(), current_module.end(), current_module.begin(), ::tolower);
-
-    ifstream f (current_module);
-    string line;
-    auto found_element = wl_library_map.find(pid);
-    // set<string> address_list;
-    set<unsigned int> address_list;
-    if(found_element!=wl_library_map.end()){
-        address_list = found_element->second;
-        while(getline(f, line)) {
-            std::transform(line.begin(), line.end(), line.begin(), ::tolower);
-            stringstream ss;
-            ss << std::hex << line;
-            unsigned int x;
-            ss >> x;
-            address_list.erase(base + x);
-        }
-    }
-    wl_library_map[pid] = address_list;
+//    string current_module = string(mod_filename);
+//    current_module.erase(0,3);
+//    replace( current_module.begin(), current_module.end(), '\\', '_');
+//    current_module += ".wl";
+//    current_module.insert(0, stored_wl);
+//    std::transform(current_module.begin(), current_module.end(), current_module.begin(), ::tolower);
+//
+//    ifstream f (current_module);
+//    string line;
+//    auto found_element = wl_library_map.find(pid);
+//    // set<string> address_list;
+//    set<unsigned int> address_list;
+//    if(found_element!=wl_library_map.end()){
+//        address_list = found_element->second;
+//        while(getline(f, line)) {
+//            std::transform(line.begin(), line.end(), line.begin(), ::tolower);
+//            stringstream ss;
+//            ss << std::hex << line;
+//            unsigned int x;
+//            ss >> x;
+//            address_list.erase(base + x);
+//        }
+//    }
+//    wl_library_map[pid] = address_list;
 }
 
 void main_module_load(CPUState *env, char *proc_name, unsigned int pid, char *mod_name, char *mod_filename, target_ulong size, target_ulong base) {
@@ -351,14 +351,14 @@ bool check_destination_address(OsiProc *current, target_ulong pc) {
         auto range = main_module_range_elem->second;
         if (pc > range.first && pc > range.second) {
             if (DEBUG) {
-                printf("%lu found into whitelist for process %lu:%s\n", pc, current->pid, current->name);
+//                printf("%lu found into whitelist for process %lu:%s\n", pc, current->pid, current->name);
             }
             return true;
         }
     }
     if (kern_mod_set.find(pc) != kern_mod_set.end()) {
         if (DEBUG) {
-            printf("%lu found into whitelist for process %lu:%s\n", pc, current->pid, current->name);
+//            printf("%lu found into whitelist for process %lu:%s\n", pc, current->pid, current->name);
         }
         return true;
     }
@@ -468,8 +468,8 @@ bool init_plugin(void *self) {
     printf("Initializing plugin cfi\n");
     args = panda_get_args("cfi");
     DEBUG = panda_parse_bool(args, "DEBUG");
-//    DEBUG = true;
-    POP_LEVEL = panda_parse_double(args, "pop", 100.0);
+    DEBUG = true;
+//    POP_LEVEL = panda_parse_double(args, "pop", 100.0);
     // original_disk = panda_parse_string(args,"original_disk","/home/giuseppe/qcow_copy/");
     stored_wl = panda_parse_string(args,"stored_wl","/home/giuseppe/PassaggioDati/file_wl/");
     panda_enable_precise_pc();
@@ -486,9 +486,9 @@ bool init_plugin(void *self) {
     panda_require("callstack_instr");
     if (!init_callstack_instr_api()) return false;
     if(!init_osi_api()) return false;
-    PPP_REG_CB("callstack_instr", on_call_2, on_call_2);
+//    PPP_REG_CB("callstack_instr", on_call_2, on_call_2);
     PPP_REG_CB("callstack_instr", on_call, on_call);
-    PPP_REG_CB("callstack_instr", on_ret, on_ret);
+//    PPP_REG_CB("callstack_instr", on_ret, on_ret);
     // printf("CFI plugin loaded\nDEBUG mode %s\nLocal VM disk copy: %s\nFolder with stored whitelists: %s\nOn RET instruction, check stacks %lf levels\n", DEBUG ? "enabled" : "disabled", original_disk, stored_wl, POP_LEVEL);
     printf("CFI plugin loaded\nDEBUG mode %s\nFolder with stored whitelists: %s\nOn RET instruction, check stacks %lf levels\n", DEBUG ? "enabled" : "disabled", stored_wl, POP_LEVEL);
     return true;
