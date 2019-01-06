@@ -58,7 +58,7 @@ using namespace std;
 map<OsiProc, set<OsiModule> > library_map;
 set<OsiProc> proc_set;
 set<OsiModule> kernel_module_set;
-
+static uint32_t capacity = 16;
 
 bool operator<(OsiModule const &a, OsiModule const &b) {
     string a_name(a.name);
@@ -86,8 +86,28 @@ void remove_processes(CPUState *env, set<OsiProc> to_remove) {
     for (it = to_remove.begin(); it != to_remove.end(); ++it) {
         OsiProc current = *it;
         proc_set.erase(current);
+        to_remove.erase(current);
 //        printf("REMOVED PROCESS: %lu - %s\n", it->pid, it->name);
         PPP_RUN_CB(removed_process_notify, env, current.pid, current.name);
+        auto process_from_map = library_map.find(current);
+        if (process_from_map != library_map.end()) {
+            set<OsiModule> old_set = process_from_map->second;
+            for (auto it2 = old_set.begin(); it2 != old_set.end(); ++it2) {
+//                if (strcmp(current.name, it2->name) == 0) {
+////                        printf("Main Module: %s\n", ms->module[j].name);
+//                    PPP_RUN_CB(removed_main_module_notify, env, current.name, current.pid, it2->name, it2->file,
+//                               it2->size, it2->base);
+//                }
+////                    printf("Normal Module: %s\n", ms->module[j].name);
+//                PPP_RUN_CB(removed_module_notify, env, current.name, current.pid, it2->name, it2->file, it2->size,
+//                           it2->base);
+                OsiModule current_module = *it2;
+                free(current_module.file);
+                free(current_module.name);
+                free(&current_module);
+            }
+        }
+
     }
 }
 
@@ -99,6 +119,7 @@ void remove_kernel_modules(CPUState *env, set<OsiModule> to_remove) {
     for (it = to_remove.begin(); it != to_remove.end(); ++it) {
         kernel_module_set.erase(*it);
         PPP_RUN_CB(removed_kernmod_notify, env, it->name, it->file, it->size, it->base);
+        to_remove.erase(it);
     }
 }
 
@@ -193,11 +214,34 @@ void update_modules(CPUState *env, set<OsiProc> proc_intersection_set) {
 //                    printf("Normal Module: %s\n", ms->module[j].name);
                     PPP_RUN_CB(removed_module_notify, env, current.name, current.pid, it2->name, it2->file, it2->size,
                                it2->base);
+                    OsiModule current_module = *it2;
+                    free(current_module.file);
+                    free(current_module.name);
+                    free(&current_module);
                 }
             }
         }
     }
 }
+
+
+void copy_module(OsiModule old_mod, OsiModule *new_mod) {
+    char *name = (char *) malloc(sizeof(old_mod.name) + 1);
+    strcpy(name, old_mod.name);
+    new_mod->name = name;
+    new_mod->size = old_mod.size;
+    new_mod->base = old_mod.size;
+}
+
+void copy_proc(OsiProc o, OsiProc *p) {
+    char *name = (char *) malloc(17);
+    strcpy(name, o.name);
+    p->name = name;
+    p->pages = NULL;
+    p->pid = o.pid;
+    p->ppid = o.ppid;
+}
+
 
 int before_block_exec(CPUState *env, TranslationBlock *tb) {
     OsiProcs *ps = get_processes(env);
@@ -206,8 +250,12 @@ int before_block_exec(CPUState *env, TranslationBlock *tb) {
     }
     set<OsiProc> new_proc_set;
     for (int i = 0; i < ps->num; i++) {
-        new_proc_set.insert(ps->proc[i]);
+        OsiProc *p = (OsiProc *) malloc(sizeof(OsiProc) * capacity);
+        copy_proc(ps->proc[i], p);
+//        OsiProc old = ps->proc[i];
+        new_proc_set.insert(*p);
     }
+    free_osiprocs(ps);
     set<OsiProc> to_add, to_remove, intersection_set;
     set_difference(proc_set.begin(), proc_set.end(), new_proc_set.begin(), new_proc_set.end(),
                    inserter(to_remove, to_remove.begin()));
@@ -222,8 +270,11 @@ int before_block_exec(CPUState *env, TranslationBlock *tb) {
     set<OsiModule> new_modkern_set;
     OsiModules *kms = get_modules(env);
     for (int i = 0; i < kms->num; i++) {
-        new_modkern_set.insert(kms->module[i]);
+        OsiModule *new_mod = (OsiModule *) malloc(sizeof(OsiModule) * capacity);
+        copy_module(kms->module[i], new_mod);
+        new_modkern_set.insert(*new_mod);
     }
+    free_osimodules(kms);
     set<OsiModule> kern_to_add, kern_to_remove, kern_intersection;
     set_difference(kernel_module_set.begin(), kernel_module_set.end(), new_modkern_set.begin(), new_modkern_set.end(),
                    inserter(kern_to_remove, kern_to_remove.begin()));
