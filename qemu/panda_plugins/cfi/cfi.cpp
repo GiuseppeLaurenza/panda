@@ -62,7 +62,7 @@ map<unsigned int, pair<unsigned int, unsigned int>> wl_mainmodule_map;
 set<unsigned int> kern_mod_set;
 set<unsigned int> swap_context_address_set;
 unsigned int swap_context_relative_address[] = {517399, 810965, 489618, 489159, 517789, 491214};
-bool DEBUG;
+bool DEBUG = false;
 double POP_LEVEL;
 panda_arg_list *args;
 
@@ -238,30 +238,27 @@ void module_unload(CPUState *env, char *proc_name, unsigned int pid, char *mod_n
     if (DEBUG) {
         printf("Unloaded Module %s\n", mod_name);
     }
-//    string current_module = string(mod_filename);
-//    current_module.erase(0,3);
-//    replace( current_module.begin(), current_module.end(), '\\', '_');
-//    current_module += ".wl";
-//    current_module.insert(0, stored_wl);
-//    std::transform(current_module.begin(), current_module.end(), current_module.begin(), ::tolower);
-//
-//    ifstream f (current_module);
-//    string line;
-//    auto found_element = wl_library_map.find(pid);
-//    // set<string> address_list;
-//    set<unsigned int> address_list;
-//    if(found_element!=wl_library_map.end()){
-//        address_list = found_element->second;
-//        while(getline(f, line)) {
-//            std::transform(line.begin(), line.end(), line.begin(), ::tolower);
-//            stringstream ss;
-//            ss << std::hex << line;
-//            unsigned int x;
-//            ss >> x;
-//            address_list.erase(base + x);
-//        }
-//    }
-//    wl_library_map[pid] = address_list;
+    string current_module = string(mod_filename);
+    current_module.erase(0, 3);
+    replace(current_module.begin(), current_module.end(), '\\', '_');
+    current_module += ".wl";
+    current_module.insert(0, stored_wl);
+    // std::transform(current_module.begin(), current_module.end(), current_module.begin(), ::tolower);
+    ifstream f(current_module);
+    string line;
+    auto found_element = wl_library_map.find(pid);
+    set<unsigned int> address_list;
+    if (found_element != wl_library_map.end()) {
+        address_list = found_element->second;
+    }
+    while (getline(f, line)) {
+        stringstream ss;
+        unsigned int x;
+        ss << line;
+        ss >> x;
+        address_list.erase(x + base);
+    }
+    wl_library_map[pid] = address_list;
 }
 
 void main_module_load(CPUState *env, char *proc_name, unsigned int pid, char *mod_name, char *mod_filename, target_ulong size, target_ulong base) {
@@ -275,7 +272,7 @@ void main_module_unload(CPUState *env, char *proc_name, unsigned int pid, char *
     if (DEBUG) {
         printf("Unloaded Main Module %s\n", mod_name);
     }
-    //TODO ADD unloaded mode code
+    wl_mainmodule_map.erase(pid);
 }
 
 
@@ -468,7 +465,7 @@ bool init_plugin(void *self) {
     printf("Initializing plugin cfi\n");
     args = panda_get_args("cfi");
     DEBUG = panda_parse_bool(args, "DEBUG");
-    DEBUG = true;
+    // DEBUG = true;
 //    POP_LEVEL = panda_parse_double(args, "pop", 100.0);
     // original_disk = panda_parse_string(args,"original_disk","/home/giuseppe/qcow_copy/");
     stored_wl = panda_parse_string(args,"stored_wl","/home/giuseppe/PassaggioDati/file_wl/");
