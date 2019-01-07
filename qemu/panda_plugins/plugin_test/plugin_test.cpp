@@ -9,16 +9,27 @@
 
 
 extern "C" {
+#include "panda_plugin.h"
+#include "panda_plugin_plugin.h"
+#include "../common/prog_point.h"
 // #include "panda/rr/rr_log.h"
 // #include "panda/plog.h"
+#include "pandalog.h"
+#include "rr_log.h"
 
 // #include "../pri/pri_types.h"
 // #include "../pri/pri_ext.h"
 // #include "../pri/pri.h"
 
+#include "../libfi/libfi.h"
+#include "../libfi/libfi_ext.h"
 // #include "../libfi/libfi_int.h"
 
+#include "../procmon/procmon.h"
 
+
+
+#include "cpu.h"
 
 bool init_plugin(void *);
 void uninit_plugin(void *);
@@ -80,14 +91,14 @@ bool init_plugin(void *self) {
     // PPP_REG_CB("pri", fn_start, on_fn_start);
     // PPP_REG_CB("pri", on_fn_return, fn_return_new);
     panda_require("procmon");
-//    PPP_REG_CB("procmon", new_module_notify, module_start);
-//    PPP_REG_CB("procmon", removed_module_notify, module_remove);
-//    PPP_REG_CB("procmon", new_main_module_notify, main_module_start);
-//    PPP_REG_CB("procmon", removed_main_module_notify, main_module_remove);
-    PPP_REG_CB("procmon", removed_kernmod_notify, kernel_module_remove);
-    PPP_REG_CB("procmon", new_kernmod_notify, kernel_module_add);
-    PPP_REG_CB("procmon", new_process_notify, proc_start);
-    PPP_REG_CB("procmon", removed_process_notify, proc_remove);
+    PPP_REG_CB("procmon", new_module_notify, module_start);
+    PPP_REG_CB("procmon", removed_module_notify, module_remove);
+    PPP_REG_CB("procmon", new_main_module_notify, main_module_start);
+    PPP_REG_CB("procmon", removed_main_module_notify, main_module_remove);
+//    PPP_REG_CB("procmon", removed_kernmod_notify, kernel_module_remove);
+//    PPP_REG_CB("procmon", new_kernmod_notify, kernel_module_add);
+//    PPP_REG_CB("procmon", new_process_notify, proc_start);
+//    PPP_REG_CB("procmon", removed_process_notify, proc_remove);
 #endif
     return true;
 }

@@ -61,4 +61,4 @@ pri_win7
 libfi
 procmon
 cfi
-plugin_test
+#plugin_test
