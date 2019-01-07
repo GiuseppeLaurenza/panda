@@ -483,9 +483,9 @@ bool init_plugin(void *self) {
     panda_require("callstack_instr");
     if (!init_callstack_instr_api()) return false;
     if(!init_osi_api()) return false;
-//    PPP_REG_CB("callstack_instr", on_call_2, on_call_2);
+    PPP_REG_CB("callstack_instr", on_call_2, on_call_2);
     PPP_REG_CB("callstack_instr", on_call, on_call);
-//    PPP_REG_CB("callstack_instr", on_ret, on_ret);
+    PPP_REG_CB("callstack_instr", on_ret, on_ret);
     // printf("CFI plugin loaded\nDEBUG mode %s\nLocal VM disk copy: %s\nFolder with stored whitelists: %s\nOn RET instruction, check stacks %lf levels\n", DEBUG ? "enabled" : "disabled", original_disk, stored_wl, POP_LEVEL);
     printf("CFI plugin loaded\nDEBUG mode %s\nFolder with stored whitelists: %s\nOn RET instruction, check stacks %lf levels\n", DEBUG ? "enabled" : "disabled", stored_wl, POP_LEVEL);
     return true;
