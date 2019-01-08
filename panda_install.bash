@@ -48,6 +48,7 @@ then
   cd ../../..
   cd distorm3/include
   sudo cp * /usr/local/include
+  sudo ldconfig
 else
   progress "Skipping distorm..."
 fi
