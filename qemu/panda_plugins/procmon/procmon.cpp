@@ -221,8 +221,10 @@ int before_block_exec(CPUState *env, TranslationBlock *tb) {
 
     set<OsiModule> new_modkern_set;
     OsiModules *kms = get_modules(env);
-    for (int i = 0; i < kms->num; i++) {
-        new_modkern_set.insert(kms->module[i]);
+    if(kms!=NULL){
+        for (int i = 0; i < kms->num; i++) {
+            new_modkern_set.insert(kms->module[i]);
+        }
     }
     set<OsiModule> kern_to_add, kern_to_remove, kern_intersection;
     set_difference(kernel_module_set.begin(), kernel_module_set.end(), new_modkern_set.begin(), new_modkern_set.end(),
