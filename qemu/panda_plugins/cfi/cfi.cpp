@@ -437,6 +437,9 @@ bool check_destination_address(OsiProc *current, target_ulong pc) {
             if (pc > base && pc < (base + size)) {
                 string module_name = string(current_module.file);
                 if(module_name.find(current->name) != string::npos){
+                    if(DEBUG){
+                        printf("[%u] Find address &u in main module whitelist %s\n",current->pid,pc, current_module.file);
+                    }
                     return true;
                 }
                 auto dll_element = dll_address_map.find(module_name);
@@ -444,6 +447,9 @@ bool check_destination_address(OsiProc *current, target_ulong pc) {
                     auto address_set = dll_element->second;
                     int count=address_set.count(pc-base);
                     if (address_set.count(pc - base)) {
+                        if(DEBUG){
+                            printf("[%u] Find address &u in module whitelist %s\n",current->pid,pc, module_name.c_str());
+                        }
                         return true;
                     }
                 }
@@ -582,11 +588,10 @@ bool init_plugin(void *self) {
     panda_require("callstack_instr");
     if (!init_callstack_instr_api()) return false;
     if(!init_osi_api()) return false;
-   PPP_REG_CB("callstack_instr", on_call_2, on_call_2);
+//    PPP_REG_CB("callstack_instr", on_call_2, on_call_2);
     PPP_REG_CB("callstack_instr", on_call, on_call);
-   PPP_REG_CB("callstack_instr", on_ret, on_ret);
-    // printf("CFI plugin loaded\nDEBUG mode %s\nLocal VM disk copy: %s\nFolder with stored whitelists: %s\nOn RET instruction, check stacks %lf levels\n", DEBUG ? "enabled" : "disabled", original_disk, stored_wl, POP_LEVEL);
-    printf("CFI plugin loaded\nDEBUG mode %s\nFolder with stored whitelists: %s\nOn RET instruction, check stacks %lf levels\n", DEBUG ? "enabled" : "disabled", stored_wl, POP_LEVEL);
+//    PPP_REG_CB("callstack_instr", on_ret, on_ret);
+    printf("CFI plugin loaded\nDEBUG mode %s\nFolder with stored whitelists: %s\n", DEBUG ? "enabled" : "disabled", stored_wl);
     return true;
 //#else
 //    cout << "CFI plugin not supported on this architecture" << endl;
