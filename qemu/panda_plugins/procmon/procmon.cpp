@@ -32,6 +32,7 @@ void uninit_plugin(void *);
 int vmi_pgd_changed(CPUState *env, target_ulong old_pgd, target_ulong new_pgd);
 int before_block_exec(CPUState *env, TranslationBlock *tb);
 void update_lists(CPUState *env);
+void update_module(CPUState *env, target_ulong pid);
 
 PPP_PROT_REG_CB(new_process_notify);
 PPP_PROT_REG_CB(removed_process_notify);
@@ -153,16 +154,30 @@ void update_modules(CPUState *env, set<OsiProc> proc_intersection_set) {
         OsiProc current = *it;
         OsiModules *ms = get_libraries(env, &current);
         if (ms != NULL) {
-            bool paged = false;
             set<OsiModule> new_module_set;
             for (int j = 0; j < ms->num; j++) {
                 if (strcmp("(paged)", ms->module[j].name) != 0) {
                     new_module_set.insert(ms->module[j]);
-                } else {
-                    paged = true;
                 }
             }
-            if(paged){
+            if (new_module_set.size() == 0) {
+                OsiProcs *ps = get_processes(env);
+                if (ps != NULL) {
+//                    printf("Process list (%d procs):\n", ps->num);
+                    int i;
+                    for (i = 0; i < ps->num; i++) {
+                        if (ps->proc[i].pid == current.pid) {
+                            break;
+                        }
+                    }
+                    ms = get_libraries(env, &(ps->proc[i]));
+                    for (int j = 0; j < ms->num; j++) {
+                        if (strcmp("(paged)", ms->module[j].name) != 0) {
+                            new_module_set.insert(ms->module[j]);
+                        }
+                    }
+
+                }
                 continue;
             }
             auto process_from_map = library_map.find(current);
@@ -242,6 +257,60 @@ int before_block_exec(CPUState *env, TranslationBlock *tb) {
 void update_lists(CPUState *env) {
 //    printf("UPDATE LISTS\n");
     before_block_exec(env, NULL);
+}
+
+
+void update_module(CPUState *env, target_ulong pid) {
+    set<OsiProc>::iterator it;
+    OsiProc current;
+    for (it = proc_set.begin(); it != proc_set.end(); ++it) {
+        if (it->pid == pid) {
+            current = *it;
+            break;
+        }
+    }
+    OsiModules *ms = get_libraries(env, &current);
+    if (ms != NULL) {
+        set<OsiModule> new_module_set;
+        for (int j = 0; j < ms->num; j++) {
+            if (strcmp("(paged)", ms->module[j].name) != 0) {
+                new_module_set.insert(ms->module[j]);
+            }
+        }
+        auto process_from_map = library_map.find(current);
+        set<OsiModule> old_set;
+        if (process_from_map != library_map.end()) {
+            old_set = process_from_map->second;
+        }
+        set<OsiModule> to_add, to_remove, intersection_set;
+        set_difference(old_set.begin(), old_set.end(), new_module_set.begin(), new_module_set.end(),
+                       inserter(to_remove, to_remove.begin()));
+        set_difference(new_module_set.begin(), new_module_set.end(), old_set.begin(), old_set.end(),
+                       inserter(to_add, to_add.begin()));
+        set<OsiModule>::iterator it2;
+        for (it2 = to_add.begin(); it2 != to_add.end(); ++it2) {
+            if (strcmp(current.name, it2->name) == 0) {
+//                        printf("Main Module: %s\n", ms->module[j].name);
+                PPP_RUN_CB(new_main_module_notify, env, current.name, current.pid, it2->name, it2->file,
+                           it2->size, it2->base);
+            }
+//                    printf("Normal Module: %s\n", ms->module[j].name);
+            PPP_RUN_CB(new_module_notify, env, current.name, current.pid, it2->name, it2->file, it2->size,
+                       it2->base);
+        }
+        for (it2 = to_remove.begin(); it2 != to_remove.end(); ++it2) {
+            if (strcmp(current.name, it2->name) == 0) {
+//                        printf("Main Module: %s\n", ms->module[j].name);
+                PPP_RUN_CB(removed_main_module_notify, env, current.name, current.pid, it2->name, it2->file,
+                           it2->size, it2->base);
+            }
+//                    printf("Normal Module: %s\n", ms->module[j].name);
+            PPP_RUN_CB(removed_module_notify, env, current.name, current.pid, it2->name, it2->file, it2->size,
+                       it2->base);
+        }
+
+    }
+
 }
 
 int vmi_pgd_changed(CPUState *env, target_ulong old_pgd, target_ulong new_pgd) {

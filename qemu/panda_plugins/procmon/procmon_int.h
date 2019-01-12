@@ -17,5 +17,7 @@
 //  Just the prototypes, please.
 
 typedef void CPUState;
+typedef void target_ulong;
+typedef void OsiProc;
 
 #include "procmon_int_fns.h"

@@ -65,6 +65,7 @@ map<target_ulong,stack<target_ulong>> kernel_stack;
 static uint32_t capacity = 16;
 map <string,set<target_ulong>> dll_address_map;
 map <target_ulong,list<OsiModule>> process_dll_map;
+list<OsiModule> kernell_dll_list;
 
 set<unsigned int> kern_mod_set;
 set<unsigned int> swap_context_address_set;
@@ -114,7 +115,7 @@ bool check_kernel_exec(CPUState *env, target_ulong pc) {
         unsigned int size = kms->module[i].size;
         if (pc > base && pc < (base + size)) {
             string dll_name = kms->module[i].name;
-            if (dll_name.find("ntkrnlpa") != string::npos) {
+            if (dll_name.find("ntkrnlpa") != string::npos || dll_name.find("ntoskrnl") != string::npos) {
                 free_osimodules(kms);
                 return true;
             }
@@ -130,6 +131,8 @@ bool get_library_name(CPUState *env, target_ulong pc, string appendix){
     if (ps == NULL) {
         return false;
     }
+    OsiProc *caller_process = get_current_process(env);
+
     int i;
     for (i = 0; i < ps->num; i++) {
         OsiProc *current = &(ps->proc[i]);
@@ -141,15 +144,19 @@ bool get_library_name(CPUState *env, target_ulong pc, string appendix){
                 unsigned int base = ms->module[i].base;
                 unsigned int size = ms->module[i].size;
                 if (pc > base && pc < (base + size)) {
+                    if (caller_process->pid == current->pid) {
+                        update_module(env, current->pid);
+                    }
                     string dll_name = ms->module[i].name;
                     string file_name = ms->module[i].file;
                     target_ulong base_found = base;
-                    cout << pid << " - " << appendix << " - Full Address " << std::hex << pc << "-" << std::dec << pc
+                    cout << "[Current: " << caller_process->pid << " - Owner: " << current->pid << "] " << appendix
+                         << " - Full Address " << std::hex << pc << "-" << std::dec << pc
                          << ", Virtual Address " << std::hex << pc - base_found << "-" << std::dec << pc - base_found
                          << " is in " << dll_name << " with full path as: " << file_name << endl;
 //                    free_osimodules(ms);
 //                    free_osiprocs(ps);
-                    return true;
+//                    return true;
                 }
 //                free_osimodules(ms);
             }
@@ -168,38 +175,15 @@ bool get_library_name(CPUState *env, target_ulong pc, string appendix){
             string dll_name = kms->module[i].name;
             string file_name = kms->module[i].file;
             target_ulong base_found = base;
-            cout << "[" << current->pid << "] " << appendix << " - Full Address " << std::hex << pc << "-" << std::dec
+            cout << "[KERNEL - " << current->pid << "] " << appendix << " - Full Address " << std::hex << pc << "-"
+                 << std::dec
                  << pc << ", Virtual Address " << std::hex << pc - base_found << "-" << std::dec << pc - base_found
                  << " is in " << dll_name << " with full path as: " << file_name << endl;
-            return true;
+//            return true;
         }
 
     }
     return false;
-}
-
-void mod_kernel_load(CPUState *env, char *mod_name, char *mod_filename, target_ulong size, target_ulong base) {
-    if (DEBUG) {
-        printf("New Kernel Module loaded:%s - %s \n", mod_name, mod_filename);
-    }
-    string current_module = string(mod_filename);
-    std::transform(current_module.begin(), current_module.end(), current_module.begin(), ::tolower);
-    current_module.erase(0, 3);
-    replace(current_module.begin(), current_module.end(), '\\', '_');
-    current_module += ".wl";
-    current_module.insert(0, stored_wl);
-//    string prova = regex_replace( current_module, regex("stemRoot"), "windows");
-    string to_replace = "stemroot";
-    current_module.replace(current_module.find(to_replace), to_replace.length(), "windows");
-    ifstream f(current_module.c_str());
-    string line;
-    while (getline(f, line)) {
-        stringstream ss;
-        unsigned int x;
-        ss << line;
-        ss >> x;
-        kern_mod_set.insert(x + base);
-    }
 }
 
 void mod_kernel_remove(CPUState *env, char *mod_name, char *mod_filename, target_ulong size, target_ulong base) {
@@ -223,19 +207,22 @@ void exit_process(CPUState *env, unsigned int pid, char *proc_name) {
     // wl_mainmodule_map.erase(pid);
 }
 
-
-
-
-
 bool add_module_address(char* mod_filename){
     string current_module = string(mod_filename);
-    if(dll_address_map.count(current_module)>0){
+    string module_path = string(mod_filename);
+    if (dll_address_map.count(mod_filename) > 0) {
         return false;
     }
-    string module_path = string(mod_filename);
+
     module_path.erase(0,3);
+    string to_replace = "stemRoot";
+    if (module_path.find(to_replace) != string::npos) {
+        module_path.replace(module_path.find(to_replace), to_replace.length(), "windows");
+    }
+    std::transform(module_path.begin(), module_path.end(), module_path.begin(), ::tolower);
     replace( module_path.begin(), module_path.end(), '\\', '_');
     module_path += ".wl";
+
     module_path.insert(0, stored_wl);
     set<target_ulong> address_list;
     ifstream f (module_path);
@@ -270,6 +257,34 @@ bool add_module_pid(target_ulong pid, char* mod_name, char* mod_filename, target
     //     printf("[%u] Module_list %d - Process Map: %d\n", pid, module_list.size(), process_dll_map.size());
     // }
     return true;
+}
+
+
+void mod_kernel_load(CPUState *env, char *mod_name, char *mod_filename, target_ulong size, target_ulong base) {
+    if (DEBUG) {
+        printf("New Kernel Module loaded:%s - %s \n", mod_name, mod_filename);
+    }
+
+//    string current_module = string(mod_filename);
+//    std::transform(current_module.begin(), current_module.end(), current_module.begin(), ::tolower);
+//    current_module.erase(0, 3);
+//    replace(current_module.begin(), current_module.end(), '\\', '_');
+//    current_module += ".wl";
+//    current_module.insert(0, stored_wl);
+////    string prova = regex_replace( current_module, regex("stemRoot"), "windows");
+//    string to_replace = "stemroot";
+//    current_module.replace(current_module.find(to_replace), to_replace.length(), "windows");
+//    ifstream f(current_module.c_str());
+//    string line;
+//    while (getline(f, line)) {
+//        stringstream ss;
+//        unsigned int x;
+//        ss << line;
+//        ss >> x;
+//        kern_mod_set.insert(x + base);
+//    }
+    add_module_address(mod_filename);
+    add_module_pid(5, mod_name, mod_filename, size, base);
 }
 
 void new_module_load(CPUState *env, char *proc_name, unsigned int pid, char *mod_name, char *mod_filename, target_ulong size, target_ulong base) {
@@ -372,6 +387,7 @@ bool check_return_address(CPUState *env, OsiProc *current, target_ulong current_
         while (!current_stack.empty()) {
             target_ulong temp = current_stack.top();
             current_stack.pop();
+            // printf("[%u] Stack size: %d\n",current_key, current_stack.size());
             if (temp == current_pc) {
 #if !defined(TARGET_ARM)
                 if (DEBUG) {
@@ -390,6 +406,35 @@ bool check_return_address(CPUState *env, OsiProc *current, target_ulong current_
     return false;
 }
 
+
+bool check_into_module_list(OsiProc *current, list<OsiModule> module_list, target_ulong pc) {
+    for (auto current_module_iterator = module_list.begin();
+         current_module_iterator != module_list.end(); ++current_module_iterator) {
+        OsiModule current_module = *current_module_iterator;
+        unsigned int base = current_module.base;
+        unsigned int size = current_module.size;
+        if (pc > base && pc < (base + size)) {
+            string module_name = string(current_module.file);
+            if (module_name.find(current->name) != string::npos) {
+                if (DEBUG) {
+                    printf("[%u] Find address %u in main module whitelist %s\n", current->pid, pc, current_module.file);
+                }
+                return true;
+            }
+            auto dll_element = dll_address_map.find(module_name);
+            if (dll_element != dll_address_map.end()) {
+                auto address_set = dll_element->second;
+                int count = address_set.count(pc - base);
+                if (address_set.count(pc - base)) {
+//                    if(DEBUG){
+//                        printf("[%u] Find address %u in module whitelist %s\n",current->pid,pc, module_name.c_str());
+//                    }
+                    return true;
+                }
+            }
+        }
+    }
+}
 
 bool check_destination_address(OsiProc *current, target_ulong pc) {
     char idle_name[] = "Idle";
@@ -429,41 +474,25 @@ bool check_destination_address(OsiProc *current, target_ulong pc) {
     auto process_dll_elem = process_dll_map.find(current->pid);
     if (process_dll_elem != process_dll_map.end()) {
         auto module_list = process_dll_elem->second;
-        for (auto current_module_iterator = module_list.begin();
-             current_module_iterator != module_list.end(); ++current_module_iterator) {
-            OsiModule current_module = *current_module_iterator;
-            unsigned int base = current_module.base;
-            unsigned int size = current_module.size;
-            if (pc > base && pc < (base + size)) {
-                string module_name = string(current_module.file);
-                if(module_name.find(current->name) != string::npos){
-                    if(DEBUG){
-                        printf("[%u] Find address &u in main module whitelist %s\n",current->pid,pc, current_module.file);
-                    }
-                    return true;
-                }
-                auto dll_element = dll_address_map.find(module_name);
-                if (dll_element != dll_address_map.end()) {
-                    auto address_set = dll_element->second;
-                    int count=address_set.count(pc-base);
-                    if (address_set.count(pc - base)) {
-                        if(DEBUG){
-                            printf("[%u] Find address &u in module whitelist %s\n",current->pid,pc, module_name.c_str());
-                        }
-                        return true;
-                    }
-                }
-            }
+        if (check_into_module_list(current, module_list, pc)) {
+            return true;
         }
     }
 
-
-    if (kern_mod_set.find(pc) != kern_mod_set.end()) {
-        if (DEBUG) {
-//            printf("%lu found into whitelist for process %lu:%s\n", pc, current->pid, current->name);
+    process_dll_elem = process_dll_map.find(5);
+    if (process_dll_elem != process_dll_map.end()) {
+        auto module_list = process_dll_elem->second;
+        if (check_into_module_list(current, module_list, pc)) {
+            return true;
         }
-        return true;
     }
+
+//    if (kern_mod_set.find(pc) != kern_mod_set.end()) {
+//        if (DEBUG) {
+////            printf("%lu found into whitelist for process %lu:%s\n", pc, current->pid, current->name);
+//        }
+//        return true;
+//    }
     return false;
 }
 
@@ -479,10 +508,14 @@ void on_call(CPUState *env, target_ulong pc) {
         update_lists(env);
         found = check_destination_address(current, pc);
         if (!found) {
-            if (check_kernel_exec(env, pc)) {
+            if (!check_kernel_exec(env, pc)) {
                 get_library_name(env, pc, "On Call - Destination");
+                update_lists(env);
+                if (!check_destination_address(current, pc)) {
                     printf("VIOLATION - %lu doesn't found into whitelist for process %lu:%s\n\n\n", pc, current->pid, current->name);
+
                 }
+            }
         }
 //        }
         // }
@@ -499,22 +532,6 @@ void on_call_2(CPUState *env, target_ulong pc) {
 //        get_library_name(env, pc, "On Call - Source");
         printf("[%s] [%lu - %lu] Source %lu - ESP: %lu\n", kernel_state ? "KERNEL" : "USER", current->pid, thread, pc, env->regs[R_ESP]);
     }
-//        if(pc == 2188178711 || pc == 2188150471|| pc == 2188150930 || pc == 2188179101 || pc == 2188472277){
-//        if(pc== 2188152526){
-//            get_library_name(env, pc, "SPECIAL RET:");
-//            FILE *fp;
-//            fp = fopen("/home/giuseppe/panda/memory_dump.raw","w+");
-//            panda_memsavep(fp);
-//            fp = fopen("/home/giuseppe/panda/test.txt", "w+");
-//            fprintf(fp, "RET= 826C8ECE\n");
-//            fprintf(fp, "tb->pc - size=34\n");
-//            target_disas(fp,2188152492, 42, 2);
-//            fprintf(fp, "\n\n cpu_get_tb_cpu_state");
-//            target_disas(fp,2188152526, 1518, 2);
-//            target_disas(fp, 2188152333, 1024, 2);
-//            fclose(fp);
-//            printf("[%s] [%lu - %lu] Source %lu - ESP: %lu\n", kernel_state ? "KERNEL" : "USER", current->pid, thread, pc, env->regs[R_ESP]);
-//        }
 #endif
     target_ulong pid = current->pid;
     ///// COMMENT THIS TO USE THREAD
@@ -570,20 +587,20 @@ bool init_plugin(void *self) {
     printf("Initializing plugin cfi\n");
     args = panda_get_args("cfi");
     DEBUG = panda_parse_bool(args, "DEBUG");
-    // DEBUG = true;
+//     DEBUG = true;
 //    POP_LEVEL = panda_parse_double(args, "pop", 100.0);
     // original_disk = panda_parse_string(args,"original_disk","/home/giuseppe/qcow_copy/");
     stored_wl = panda_parse_string(args,"stored_wl","/home/giuseppe/PassaggioDati/file_wl/");
     panda_enable_precise_pc();
     panda_require("procmon");
     if (!init_procmon_api()) return false;
-    // PPP_REG_CB("procmon", new_process_notify, new_process_create);
-    // PPP_REG_CB("procmon", removed_process_notify, exit_process);
+    PPP_REG_CB("procmon", new_process_notify, new_process_create);
+    PPP_REG_CB("procmon", removed_process_notify, exit_process);
     PPP_REG_CB("procmon", new_module_notify, new_module_load);
-    // PPP_REG_CB("procmon", removed_module_notify, module_unload);
+    PPP_REG_CB("procmon", removed_module_notify, module_unload);
     PPP_REG_CB("procmon", new_main_module_notify, main_module_load);
-    // PPP_REG_CB("procmon", removed_main_module_notify, main_module_unload);
-    // PPP_REG_CB("procmon", removed_kernmod_notify, mod_kernel_remove);
+    PPP_REG_CB("procmon", removed_main_module_notify, main_module_unload);
+    PPP_REG_CB("procmon", removed_kernmod_notify, mod_kernel_remove);
     PPP_REG_CB("procmon", new_kernmod_notify, mod_kernel_load);
     panda_require("callstack_instr");
     if (!init_callstack_instr_api()) return false;
