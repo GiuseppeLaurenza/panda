@@ -46,9 +46,9 @@ void uninit_plugin(void *);
 }
 #include "../callstack_instr/callstack_instr.h"
 #include "../callstack_instr/callstack_instr_ext.h"
-
-#include "../procmon/procmon.h"
-#include "../procmon/procmon_ext.h"
+//
+//#include "../procmon/procmon.h"
+//#include "../procmon/procmon_ext.h"
 using namespace std;
 
 template
@@ -64,11 +64,9 @@ map<target_ulong,stack<target_ulong>> kernel_stack;
 
 static uint32_t capacity = 16;
 map <string,set<target_ulong>> dll_address_map;
-map <target_ulong,list<OsiModule>> process_dll_map;
-list<OsiModule> kernell_dll_list;
-
-set<unsigned int> kern_mod_set;
+map<string, set<target_ulong>> kernel_module_address_map;
 set<unsigned int> swap_context_address_set;
+
 unsigned int swap_context_relative_address[] = {517399, 810965, 489618, 489159, 517789, 491214, 424294, 453397,453007, 424594};
 bool DEBUG = false;
 double POP_LEVEL;
@@ -76,15 +74,7 @@ panda_arg_list *args;
 
 const char * stored_wl;
 bool load=false;
-string intToHexString(int intValue) {
-    string hexStr;
-    // integer value to hex-string
-    stringstream sstream;
-    sstream << "0x" << setfill('0') << setw(8) << hex << (int)intValue;
-    hexStr= sstream.str();
-    sstream.clear();    //clears out the stream-string
-    return hexStr;
-}
+
 
 bool load_SwapContext_Address(CPUState *env) {
     OsiModules *kms = get_modules(env);
@@ -105,26 +95,6 @@ bool load_SwapContext_Address(CPUState *env) {
     return true;
 }
 
-bool check_kernel_exec(CPUState *env, target_ulong pc) {
-    OsiModules *kms = get_modules(env);
-    if(kms==NULL){
-        return false;
-    }
-    for (int i = 0; i < kms->num; i++) {
-        unsigned int base = kms->module[i].base;
-        unsigned int size = kms->module[i].size;
-        if (pc > base && pc < (base + size)) {
-            string dll_name = kms->module[i].name;
-            if (dll_name.find("ntkrnlpa") != string::npos || dll_name.find("ntoskrnl") != string::npos) {
-                free_osimodules(kms);
-                return true;
-            }
-        }
-
-    }
-    free_osimodules(kms);
-    return false;
-}
 
 bool get_library_name(CPUState *env, target_ulong pc, string appendix){
     OsiProcs *ps = get_processes(env);
@@ -136,31 +106,35 @@ bool get_library_name(CPUState *env, target_ulong pc, string appendix){
     int i;
     for (i = 0; i < ps->num; i++) {
         OsiProc *current = &(ps->proc[i]);
-        OsiModules *ms = get_libraries(env, current);
-        target_ulong pid = current->pid;
+        if (caller_process->pid == current->pid) {
+            OsiModules *ms = get_libraries(env, current);
+            target_ulong pid = current->pid;
 
-        if (ms != NULL) {
-            for (int i = 0; i < ms->num; i++) {
-                unsigned int base = ms->module[i].base;
-                unsigned int size = ms->module[i].size;
-                if (pc > base && pc < (base + size)) {
-                    if (caller_process->pid == current->pid) {
-                        update_module(env, current->pid);
-                    }
-                    string dll_name = ms->module[i].name;
-                    string file_name = ms->module[i].file;
-                    target_ulong base_found = base;
-                    cout << "[Current: " << caller_process->pid << " - Owner: " << current->pid << "] " << appendix
-                         << " - Full Address " << std::hex << pc << "-" << std::dec << pc
-                         << ", Virtual Address " << std::hex << pc - base_found << "-" << std::dec << pc - base_found
-                         << " is in " << dll_name << " with full path as: " << file_name << endl;
+            if (ms != NULL) {
+                for (int i = 0; i < ms->num; i++) {
+                    unsigned int base = ms->module[i].base;
+                    unsigned int size = ms->module[i].size;
+                    if (pc > base && pc < (base + size)) {
+//                        if (caller_process->pid == current->pid) {
+//                            update_module(env, current->pid);
+//                        }
+                        string dll_name = ms->module[i].name;
+                        string file_name = ms->module[i].file;
+                        target_ulong base_found = base;
+                        cout << "[Current: " << caller_process->pid << " - Owner: " << current->pid << "] " << appendix
+                             << " - Full Address " << std::hex << pc << "-" << std::dec << pc
+                             << ", Virtual Address " << std::hex << pc - base_found << "-" << std::dec
+                             << pc - base_found
+                             << " is in " << dll_name << " with full path as: " << file_name << endl;
 //                    free_osimodules(ms);
 //                    free_osiprocs(ps);
 //                    return true;
-                }
+                    }
 //                free_osimodules(ms);
+                }
             }
         }
+
     }
 //    free_osiprocs(ps);
     OsiModules *kms = get_modules(env);
@@ -186,32 +160,20 @@ bool get_library_name(CPUState *env, target_ulong pc, string appendix){
     return false;
 }
 
-void mod_kernel_remove(CPUState *env, char *mod_name, char *mod_filename, target_ulong size, target_ulong base) {
-    if (DEBUG) {
-        printf("Removed Kernel Module:%s - %s \n", mod_name, mod_filename);
-    }
-    //TODO ADD CODE FOR REMOVE KERNEL
-}
 
-void new_process_create(CPUState *env, unsigned int pid, char *proc_name) {
-    if (DEBUG) {
-        printf("[%lu] Create New Process:%s\n", pid, proc_name);
-    }
-}
-
-void exit_process(CPUState *env, unsigned int pid, char *proc_name) {
-    if (DEBUG) {
-        printf("Process %s Exited\n", proc_name);
-    }
-    // wl_library_map.erase(pid);
-    // wl_mainmodule_map.erase(pid);
-}
-
-bool add_module_address(char* mod_filename){
+set<target_ulong> add_module_address(char *mod_filename, bool kernel) {
     string current_module = string(mod_filename);
     string module_path = string(mod_filename);
-    if (dll_address_map.count(mod_filename) > 0) {
-        return false;
+    map<string, set<target_ulong>> current_map;
+    if (kernel) {
+        current_map = kernel_module_address_map;
+    } else {
+        current_map = dll_address_map;
+    }
+    auto address_list_iterator = current_map.find(mod_filename);
+
+    if (address_list_iterator != current_map.end()) {
+        return address_list_iterator->second;
     }
 
     module_path.erase(0,3);
@@ -234,130 +196,16 @@ bool add_module_address(char* mod_filename){
         ss >> x;
         address_list.insert(x);
     }
-    dll_address_map[current_module]=address_list;
-    return true;
-}
-
-bool add_module_pid(target_ulong pid, char* mod_name, char* mod_filename, target_ulong size, target_ulong base ){
-    OsiModule* m = (OsiModule*) malloc(sizeof(OsiModule)*capacity);
-    m->file = (char *)malloc(strlen(mod_filename)+1);
-    strcpy(m->file, mod_filename);
-    m->base = base;
-    m->size = size;
-    m->name = (char *)malloc(strlen(mod_name)+1);
-    strcpy(m->name, mod_name);
-    auto found_element = process_dll_map.find(pid);
-    list<OsiModule> module_list;
-    if(found_element!=process_dll_map.end()){
-        module_list = found_element->second;
+    if (kernel) {
+        kernel_module_address_map[current_module] = address_list;
+    } else {
+        dll_address_map[current_module] = address_list;
     }
-    module_list.push_back(*m);
-    process_dll_map[pid] = module_list;
-    // if(DEBUG){
-    //     printf("[%u] Module_list %d - Process Map: %d\n", pid, module_list.size(), process_dll_map.size());
-    // }
-    return true;
+    return address_list;
 }
 
 
-void mod_kernel_load(CPUState *env, char *mod_name, char *mod_filename, target_ulong size, target_ulong base) {
-    if (DEBUG) {
-        printf("New Kernel Module loaded:%s - %s \n", mod_name, mod_filename);
-    }
 
-//    string current_module = string(mod_filename);
-//    std::transform(current_module.begin(), current_module.end(), current_module.begin(), ::tolower);
-//    current_module.erase(0, 3);
-//    replace(current_module.begin(), current_module.end(), '\\', '_');
-//    current_module += ".wl";
-//    current_module.insert(0, stored_wl);
-////    string prova = regex_replace( current_module, regex("stemRoot"), "windows");
-//    string to_replace = "stemroot";
-//    current_module.replace(current_module.find(to_replace), to_replace.length(), "windows");
-//    ifstream f(current_module.c_str());
-//    string line;
-//    while (getline(f, line)) {
-//        stringstream ss;
-//        unsigned int x;
-//        ss << line;
-//        ss >> x;
-//        kern_mod_set.insert(x + base);
-//    }
-    add_module_address(mod_filename);
-    add_module_pid(5, mod_name, mod_filename, size, base);
-}
-
-void new_module_load(CPUState *env, char *proc_name, unsigned int pid, char *mod_name, char *mod_filename, target_ulong size, target_ulong base) {
-    if (DEBUG) {
-        printf("[%lu] New Module loaded:%s\n", pid,mod_filename);
-    }
-
-//    string current_module = string(mod_filename);
-//    current_module.erase(0,3);
-//    replace( current_module.begin(), current_module.end(), '\\', '_');
-//    current_module += ".wl";
-//    current_module.insert(0, stored_wl);
-//    // std::transform(current_module.begin(), current_module.end(), current_module.begin(), ::tolower);
-//    ifstream f (current_module);
-//    string line;
-//    auto found_element = wl_library_map.find(pid);
-//    set<unsigned int> address_list;
-//    if(found_element!=wl_library_map.end()){
-//        address_list = found_element->second;
-//    }
-//    while(getline(f, line)) {
-//        stringstream ss;
-//        unsigned int x;
-//        ss << line;
-//        ss >> x;
-//        address_list.insert(x + base);
-//    }
-//    wl_library_map[pid] = address_list;
-
-    add_module_address(mod_filename);
-    add_module_pid(pid, mod_name, mod_filename, size, base);
-}
-
-void module_unload(CPUState *env, char *proc_name, unsigned int pid, char *mod_name, char *mod_filename, target_ulong size, target_ulong base) {
-    if (DEBUG) {
-        printf("Unloaded Module %s\n", mod_name);
-    }
-    // string current_module = string(mod_filename);
-    // current_module.erase(0, 3);
-    // replace(current_module.begin(), current_module.end(), '\\', '_');
-    // current_module += ".wl";
-    // current_module.insert(0, stored_wl);
-    // // std::transform(current_module.begin(), current_module.end(), current_module.begin(), ::tolower);
-    // ifstream f(current_module);
-    // string line;
-    // auto found_element = wl_library_map.find(pid);
-    // set<unsigned int> address_list;
-    // if (found_element != wl_library_map.end()) {
-    //     address_list = found_element->second;
-    // }
-    // while (getline(f, line)) {
-    //     stringstream ss;
-    //     unsigned int x;
-    //     ss << line;
-    //     ss >> x;
-    //     address_list.erase(x + base);
-    // }
-    // wl_library_map[pid] = address_list;
-}
-
-void main_module_load(CPUState *env, char *proc_name, unsigned int pid, char *mod_name, char *mod_filename, target_ulong size, target_ulong base) {
-    if (DEBUG) {
-        printf("New Main Module loaded:%s\n", mod_name);
-    }
-//    wl_mainmodule_map[pid] = make_pair(base,base+size);
-}
-
-void main_module_unload(CPUState *env, char *proc_name, unsigned int pid, char *mod_name, char *mod_filename, target_ulong size, target_ulong base) {
-    if (DEBUG) {
-        printf("Unloaded Main Module %s\n", mod_name);
-    }
-    // wl_mainmodule_map.erase(pid);
-}
 
 
 bool check_return_address(CPUState *env, OsiProc *current, target_ulong current_pc, bool kernel_state) {
@@ -407,93 +255,76 @@ bool check_return_address(CPUState *env, OsiProc *current, target_ulong current_
 }
 
 
-bool check_into_module_list(OsiProc *current, list<OsiModule> module_list, target_ulong pc) {
-    for (auto current_module_iterator = module_list.begin();
-         current_module_iterator != module_list.end(); ++current_module_iterator) {
-        OsiModule current_module = *current_module_iterator;
-        unsigned int base = current_module.base;
-        unsigned int size = current_module.size;
-        if (pc > base && pc < (base + size)) {
-            string module_name = string(current_module.file);
-            if (module_name.find(current->name) != string::npos) {
-                if (DEBUG) {
-                    printf("[%u] Find address %u in main module whitelist %s\n", current->pid, pc, current_module.file);
+bool check_destination_address(CPUState *env, OsiProc *current, target_ulong pc) {
+    char idle_name[] = "Idle";
+    char system_name[] = "System";
+    bool found = true;
+    if (current->pid == 0) {
+        found = true;
+        return found;
+    }
+
+    if (strcmp(current->name, system_name) == 0 && current->ppid == 0) {
+        found = true;
+        return found;
+    }
+
+    OsiModules *ms = get_libraries(env, current);
+    if (ms != NULL) {
+        int i;
+        for (i = 0; i < ms->num; i++) {
+            unsigned int base = ms->module[i].base;
+            unsigned int size = ms->module[i].size;
+            if (pc > base && pc < (base + size)) {
+                string current_module = string(ms->module[i].file);
+                set<target_ulong> address_set;
+                auto dll_element = dll_address_map.find(current_module);
+                if (dll_element != dll_address_map.end()) {
+                    address_set = dll_element->second;
+
+                } else {
+                    address_set = add_module_address(ms->module[i].file, false);
                 }
-                return true;
-            }
-            auto dll_element = dll_address_map.find(module_name);
-            if (dll_element != dll_address_map.end()) {
-                auto address_set = dll_element->second;
                 int count = address_set.count(pc - base);
                 if (address_set.count(pc - base)) {
 //                    if(DEBUG){
 //                        printf("[%u] Find address %u in module whitelist %s\n",current->pid,pc, module_name.c_str());
 //                    }
-                    return true;
+                    found = true;
                 }
+
+                break;
             }
         }
+        free_osimodules(ms);
     }
-}
+    OsiModules *kms = get_modules(env);
+    if (kms != NULL) {
+        int i;
+        for (i = 0; i < kms->num; i++) {
+            unsigned int base = kms->module[i].base;
+            unsigned int size = kms->module[i].size;
+            if (pc > base && pc < (base + size)) {
+                string current_module = string(kms->module[i].file);
+                set<target_ulong> address_set;
+                auto dll_element = kernel_module_address_map.find(current_module);
+                if (dll_element != kernel_module_address_map.end()) {
+                    address_set = dll_element->second;
 
-bool check_destination_address(OsiProc *current, target_ulong pc) {
-    char idle_name[] = "Idle";
-    char system_name[] = "System";
-    if (current->pid == 0) {
-        return true;
-    }
+                } else {
+                    address_set = add_module_address(kms->module[i].file, true);
+                }
+                int count = address_set.count(pc - base);
+                if (address_set.count(pc - base)) {
+                    found = true;
+                }
+                break;
+            }
 
-    if (strcmp(current->name, system_name) == 0 && current->ppid == 0) {
-        return true;
-    }
-
-//    auto wl_library = wl_library_map.find(current->pid);
-//    set<unsigned int> address_list;
-//    if (wl_library != wl_library_map.end()) {
-//        address_list = wl_library->second;
-//        auto check = address_list.find(pc);
-//        if (check != address_list.end()) {
-////            if (DEBUG) {
-//                printf("%lu found into whitelist for process %lu:%s\n", pc, current->pid, current->name);
-////            }
-////            return true;
-//
-//        }
-//    }
-//    auto main_module_range_elem = wl_mainmodule_map.find(current->pid);
-//    if (main_module_range_elem != wl_mainmodule_map.end()) {
-//        auto range = main_module_range_elem->second;
-//        if (pc > range.first && pc < range.second) {
-////            if (DEBUG) {
-//                printf("%lu found into whitelist for process %lu:%s\n", pc, current->pid, current->name);
-////            }
-////            return true;
-//        }
-//    }
-
-    auto process_dll_elem = process_dll_map.find(current->pid);
-    if (process_dll_elem != process_dll_map.end()) {
-        auto module_list = process_dll_elem->second;
-        if (check_into_module_list(current, module_list, pc)) {
-            return true;
         }
+        free_osimodules(kms);
     }
-
-    process_dll_elem = process_dll_map.find(5);
-    if (process_dll_elem != process_dll_map.end()) {
-        auto module_list = process_dll_elem->second;
-        if (check_into_module_list(current, module_list, pc)) {
-            return true;
-        }
-    }
-
-//    if (kern_mod_set.find(pc) != kern_mod_set.end()) {
-//        if (DEBUG) {
-////            printf("%lu found into whitelist for process %lu:%s\n", pc, current->pid, current->name);
-//        }
-//        return true;
-//    }
-    return false;
+    return found;
 }
 
 
@@ -502,24 +333,25 @@ void on_call(CPUState *env, target_ulong pc) {
 //    get_library_name(env, pc, "On Call - Destination");
     OsiProc *current = get_current_process(env);
     // bool missing_dll=false;
-    bool found = check_destination_address(current, pc);
+    bool found = check_destination_address(env, current, pc);
     if(!found){
 //        if(get_library_name(env, pc, "On Call - Destination")) {
-        update_lists(env);
-        found = check_destination_address(current, pc);
-        if (!found) {
-            if (!check_kernel_exec(env, pc)) {
+//        update_lists(env);
+//        found = check_destination_address(current, pc);
+//        if (!found) {
+//            if (!check_kernel_exec(env, pc)) {
                 get_library_name(env, pc, "On Call - Destination");
-                update_lists(env);
-                if (!check_destination_address(current, pc)) {
-                    printf("VIOLATION - %lu doesn't found into whitelist for process %lu:%s\n\n\n", pc, current->pid, current->name);
+//                update_lists(env);
+//                if (!check_destination_address(current, pc)) {
+        printf("VIOLATION - %lu doesn't found into whitelist for process %lu:%s\n", pc, current->pid, current->name);
 
-                }
-            }
-        }
+//                }
+//            }
+//        }
 //        }
         // }
     }
+    free_osiproc(current);
 }
 
 void on_call_2(CPUState *env, target_ulong pc) {
@@ -567,7 +399,7 @@ void on_ret(CPUState *env, target_ulong pc) {
     bool kernel_state = panda_in_kernel(env);
     if (!check_return_address(env, current, current_pc, kernel_state)) {
 //        if (!check_return_address(env, current, current_pc, !kernel_state)) {
-            get_library_name(env, current_pc, "On Ret");
+//            get_library_name(env, current_pc, "On Ret");
 #ifndef TARGET_ARM
         printf("[%s] [%lu - %lu] %s - VIOLATION - Current address:%u - ESP:%lu\n", kernel_state ? "KERNEL" : "USER", current->pid, get_current_thread(env), current->name,
                current_pc, env->regs[R_ESP]);
@@ -588,20 +420,10 @@ bool init_plugin(void *self) {
     args = panda_get_args("cfi");
     DEBUG = panda_parse_bool(args, "DEBUG");
 //     DEBUG = true;
-//    POP_LEVEL = panda_parse_double(args, "pop", 100.0);
-    // original_disk = panda_parse_string(args,"original_disk","/home/giuseppe/qcow_copy/");
+
     stored_wl = panda_parse_string(args,"stored_wl","/home/giuseppe/PassaggioDati/file_wl/");
     panda_enable_precise_pc();
-    panda_require("procmon");
-    if (!init_procmon_api()) return false;
-    PPP_REG_CB("procmon", new_process_notify, new_process_create);
-    PPP_REG_CB("procmon", removed_process_notify, exit_process);
-    PPP_REG_CB("procmon", new_module_notify, new_module_load);
-    PPP_REG_CB("procmon", removed_module_notify, module_unload);
-    PPP_REG_CB("procmon", new_main_module_notify, main_module_load);
-    PPP_REG_CB("procmon", removed_main_module_notify, main_module_unload);
-    PPP_REG_CB("procmon", removed_kernmod_notify, mod_kernel_remove);
-    PPP_REG_CB("procmon", new_kernmod_notify, mod_kernel_load);
+
     panda_require("callstack_instr");
     if (!init_callstack_instr_api()) return false;
     if(!init_osi_api()) return false;
