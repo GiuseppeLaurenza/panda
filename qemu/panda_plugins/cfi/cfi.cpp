@@ -340,10 +340,13 @@ void on_call(CPUState *env, target_ulong pc) {
 //        found = check_destination_address(current, pc);
 //        if (!found) {
 //            if (!check_kernel_exec(env, pc)) {
-                get_library_name(env, pc, "On Call - Destination");
+        get_library_name(env, pc, "On Call");
+        bool kernel_state = panda_in_kernel(env);
 //                update_lists(env);
 //                if (!check_destination_address(current, pc)) {
         printf("VIOLATION - %lu doesn't found into whitelist for process %lu:%s\n", pc, current->pid, current->name);
+        printf("[%s][%lu - %s] Violation on return %u\n", kernel_state ? "KERNEL" : "USER", current->pid, current->name,
+               pc);
 
 //                }
 //            }
@@ -400,10 +403,13 @@ void on_ret(CPUState *env, target_ulong pc) {
     if (!check_return_address(env, current, current_pc, kernel_state)) {
 //        if (!check_return_address(env, current, current_pc, !kernel_state)) {
 //            get_library_name(env, current_pc, "On Ret");
-#ifndef TARGET_ARM
-        printf("[%s] [%lu - %lu] %s - VIOLATION - Current address:%u - ESP:%lu\n", kernel_state ? "KERNEL" : "USER", current->pid, get_current_thread(env), current->name,
-               current_pc, env->regs[R_ESP]);
-#endif
+//#ifndef TARGET_ARM
+//        printf("[%s] [%lu - %lu] %s - VIOLATION - Current address:%u - ESP:%lu\n", kernel_state ? "KERNEL" : "USER", current->pid, get_current_thread(env), current->name,
+//               current_pc, env->regs[R_ESP]);
+//#endif
+        get_library_name(env, pc, "On Return");
+        printf("[%s][%lu - %s] Violation on return %u\n", kernel_state ? "KERNEL" : "USER", current->pid, current->name,
+               pc);
 //        }
 
     }
