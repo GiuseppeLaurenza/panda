@@ -62,7 +62,7 @@ map<target_ulong,stack<target_ulong>> kernel_stack;
 // map<unsigned int, pair<unsigned int, unsigned int>> wl_mainmodule_map;
 
 
-static uint32_t capacity = 16;
+//static uint32_t capacity = 16;
 map <string,set<target_ulong>> dll_address_map;
 map<string, set<target_ulong>> kernel_module_address_map;
 set<unsigned int> swap_context_address_set;
@@ -258,7 +258,7 @@ bool check_return_address(CPUState *env, OsiProc *current, target_ulong current_
 bool check_destination_address(CPUState *env, OsiProc *current, target_ulong pc) {
     char idle_name[] = "Idle";
     char system_name[] = "System";
-    bool found = true;
+    bool found = false;
     if (current->pid == 0) {
         found = true;
         return found;
@@ -306,6 +306,11 @@ bool check_destination_address(CPUState *env, OsiProc *current, target_ulong pc)
             unsigned int size = kms->module[i].size;
             if (pc > base && pc < (base + size)) {
                 string current_module = string(kms->module[i].file);
+                if (current_module.find("ntkrnlpa") != string::npos ||
+                    current_module.find("ntoskrnl") != string::npos) {
+                    found = true;
+                    break;
+                }
                 set<target_ulong> address_set;
                 auto dll_element = kernel_module_address_map.find(current_module);
                 if (dll_element != kernel_module_address_map.end()) {
@@ -314,7 +319,6 @@ bool check_destination_address(CPUState *env, OsiProc *current, target_ulong pc)
                 } else {
                     address_set = add_module_address(kms->module[i].file, true);
                 }
-                int count = address_set.count(pc - base);
                 if (address_set.count(pc - base)) {
                     found = true;
                 }
@@ -345,7 +349,7 @@ void on_call(CPUState *env, target_ulong pc) {
 //                update_lists(env);
 //                if (!check_destination_address(current, pc)) {
         printf("VIOLATION - %lu doesn't found into whitelist for process %lu:%s\n", pc, current->pid, current->name);
-        printf("[%s][%lu - %s] Violation on return %u\n", kernel_state ? "KERNEL" : "USER", current->pid, current->name,
+        printf("[%s][%lu - %s] Violation on call %u\n", kernel_state ? "KERNEL" : "USER", current->pid, current->name,
                pc);
 
 //                }
