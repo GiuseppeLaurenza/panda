@@ -8,7 +8,10 @@ PLUGIN_NAME=procmon
 include ../panda.mak
 
 # If you need custom CFLAGS or LIBS, set them up here
-CXXFLAGS+=-std=c++11 -O3
+CXXFLAGS+=-std=c++11
+CXXFLAGS+=-O0 -g
+#CXXFLAGS+= -O3
+
 # LIBS+=
 
 # The main rule for your plugin. Please stick with the panda_ naming

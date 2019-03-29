@@ -11,6 +11,7 @@ include ../panda.mak
 # LIBS+=
 # CFLAGS+=-save-temps
 CXXFLAGS+=-std=c++11
+CXXFLAGS+=-O0 -g
 
 PLUGIN_OBJFILES=$(PLUGIN_OBJ_DIR)/os_intro.o
 ifneq (,$(findstring -DOSI_PROC_EVENTS,$(QEMU_CFLAGS)))

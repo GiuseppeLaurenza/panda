@@ -8,7 +8,7 @@ PLUGIN_NAME=win7x86intro
 include ../panda.mak
 
 # If you need custom CFLAGS or LIBS, set them up here
-# CFLAGS+=
+CFLAGS+= -O0 -g
 # LIBS+=
 
 # The main rule for your plugin. Please stick with the panda_ naming

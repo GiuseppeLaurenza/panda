@@ -12,6 +12,7 @@ include ../panda.mak
 # jumps in the stack pointer
 #QEMU_CFLAGS+=-std=c++11 -g -DUSE_STACK_HEURISTIC
 QEMU_CFLAGS+=-std=c++11 -g
+QEMU_CFLAGS+=-O0
 LIBS+=-ldistorm3
 
 # The main rule for your plugin. Please stick with the panda_ naming

@@ -243,9 +243,9 @@ bool check_destination_address(OsiProc* current, target_ulong pc) {
             unsigned int size = current_module.size;
             if (pc > base && pc < (base + size)) {
                 string module_name = string(current_module.file);
-//                if(module_name.find(current->name) != string::npos){
+                if(module_name.find(current->name) != string::npos){
                     return true;
-//                }
+                }
                 auto dll_element = dll_address_map.find(module_name);
                 if (dll_element != dll_address_map.end()) {
                     auto address_set = dll_element->second;

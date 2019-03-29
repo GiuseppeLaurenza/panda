@@ -115,6 +115,8 @@ QEMU_CFLAGS+=$(GLIB_CFLAGS)
 
 QEMU_CFLAGS+=-fPIC
 
+QEMU_CFLAGS+=-O0 -g
+
 ui/cocoa.o: ui/cocoa.m
 
 ui/sdl.o audio/sdlaudio.o ui/sdl_zoom.o baum.o: QEMU_CFLAGS += $(SDL_CFLAGS)
